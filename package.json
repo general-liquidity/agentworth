@@ -1,0 +1,29 @@
+{
+  "name": "opensolvency",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenSolvency (placeholder) — the operator-aligned governance plane for agentic spend. The 'secure enclave' of the money OS: a payment is structurally unable to execute outside an operator-granted mandate, and every decision is signed and replayable.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --import tsx --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "demo": "node --import tsx scripts/demo.ts",
+    "cli": "node --import tsx src/cli/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.81",
+    "@ai-sdk/google": "^3.0.80",
+    "@ai-sdk/openai": "^3.0.67",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ai": "^6.0.193",
+    "zod": "^4.4.3"
+  }
+}
