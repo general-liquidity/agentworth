@@ -9,13 +9,16 @@
 import type { FinancialProfile } from "./profile.ts";
 import type { ResilienceAssessment } from "./resilience.ts";
 import { chooseCommunication } from "./communication.ts";
+import { detectTraps } from "./cognitiveTraps.ts";
 
 export function buildFinanceSystemPrompt(
   profile: FinancialProfile,
   resilience: ResilienceAssessment,
 ): string {
   const comms = chooseCommunication(profile, resilience);
-  return [
+  const traps = detectTraps(profile);
+
+  const lines = [
     "You are the operator's personal financial agent — the personalised advice " +
       "most people never get (only ~8% can afford full advice; you close that gap).",
     "",
@@ -28,11 +31,38 @@ export function buildFinanceSystemPrompt(
       "never manufacture urgency, never lean on financial anxiety.",
     "- Behaviour over knowledge: don't lecture. Take the smallest useful action and " +
       "ask approval — the knowing-doing gap closes by doing, within governance.",
+    "- Act, don't teach: the field research is blunt — they will not read an article " +
+      "or watch a video, but they will do 'this → to get that'. Always propose the " +
+      "concrete next action and the pound value it unlocks, never homework.",
+  ];
+
+  // The product's wedge (Networth): good money moves come from a financially-savvy
+  // family member the person follows on trust. An operator with no role model is the
+  // exact person the agent exists for — occupy that seat explicitly.
+  if (!profile.hasRoleModel) {
+    lines.push(
+      "- Be the financially-literate family member they never had: they have no savvy " +
+        "person to copy, so be that — trustworthy, plain, proactive, and on their side.",
+    );
+  }
+
+  lines.push(
     "",
     `Current agenda: the operator's resilience is ${resilience.tier} and the weakest ` +
       `pillar is ${resilience.weakestPillar}. Bias your proactive help toward ` +
       `strengthening it. Reasons: ${resilience.reasons.join("; ")}.`,
-    "",
-    `Communication mode: ${comms.mode}. ${comms.principles.join("; ")}.`,
-  ].join("\n");
+  );
+
+  // Surface the engagement-blocking beliefs the operator's situation suggests, with
+  // the action-first counter — so the agent gently dissolves them instead of lecturing.
+  if (traps.length > 0) {
+    lines.push(
+      "",
+      "Beliefs to gently counter (detected from the operator's situation):",
+      ...traps.slice(0, 2).map((t) => `- "${t.belief}" → ${t.counter}`),
+    );
+  }
+
+  lines.push("", `Communication mode: ${comms.mode}. ${comms.principles.join("; ")}.`);
+  return lines.join("\n");
 }

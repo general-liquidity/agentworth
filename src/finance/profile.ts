@@ -8,7 +8,10 @@ import type { CurrencyCode } from "../core/types.ts";
 
 export type IncomeVolatility = "stable" | "variable" | "irregular";
 export type SupportLevel = "strong" | "some" | "none";
-export type AnxietyLevel = "low" | "moderate" | "high";
+// "defeated" is distinct from "high" anxiety: not overwhelm (too much to handle)
+// but learned helplessness ("nothing is attainable, not worth trying" — Networth
+// interview #2). It needs agency-restoring tone, not reassurance — see communication.ts.
+export type AnxietyLevel = "low" | "moderate" | "high" | "defeated";
 
 /** Networth found the horizon matures across this arc (short-term → long-term). */
 export type LifeStage = "early-student" | "late-student" | "early-career" | "established";

@@ -8,6 +8,7 @@ import type { FinancialProfile } from "./profile.ts";
 import type { ResilienceAssessment } from "./resilience.ts";
 
 export type CommunicationMode =
+  | "restore_agency" // defeated: re-establish that one concrete thing IS attainable
   | "reassure_first" // high anxiety: lead with reassurance, one small step
   | "plain_low_friction" // low awareness/early stage: plain language, minimal asks
   | "direct" // steady operator: concise, action-first
@@ -22,6 +23,20 @@ export function chooseCommunication(
   profile: FinancialProfile,
   resilience: ResilienceAssessment,
 ): CommunicationGuidance {
+  // Defeat ("nothing is attainable") needs agency restored, not reassurance: the
+  // operator already believes effort is futile, so simplifying isn't the lever —
+  // proof that one concrete win is reachable is. (Networth #2.)
+  if (profile.financialAnxiety === "defeated") {
+    return {
+      mode: "restore_agency",
+      principles: [
+        "re-establish that one concrete thing IS attainable, with a real number",
+        "propose a single tiny win, not a plan",
+        "never imply the situation is hopeless or their fault",
+      ],
+    };
+  }
+
   if (profile.financialAnxiety === "high") {
     return {
       mode: "reassure_first",
