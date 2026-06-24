@@ -169,7 +169,7 @@ never fabricates a settlement.
 
 | Integration | What it is |
 |:--|:--|
-| <img height="14" align="top" src="https://cdn.simpleicons.org/coinbase/0052FF" />&nbsp; **x402** | HTTP-402 + stablecoin settlement (Coinbase / Linux Foundation) - challenge → authorize → settle. |
+| <img height="14" align="top" src="assets/integrations/x402.jpg" />&nbsp; **x402** | [HTTP-402 + stablecoin settlement](https://www.x402.org) (x402 Foundation) - challenge → authorize → settle. |
 | <img height="14" align="top" src="assets/integrations/ap2.svg" />&nbsp; **AP2** | [Agent Payments Protocol](https://ap2-protocol.org) (Google + FIDO) - SD-JWT payment mandates; an AP2 mandate maps onto an OpenSolvency mandate. |
 | <img height="14" align="top" src="assets/integrations/agentic-commerce-protocol.png" />&nbsp; **Agentic Commerce Protocol** | [ACP](https://www.agenticcommerce.dev) (OpenAI + Stripe) - an agent completes a merchant checkout via a delegated payment token, settled over card rails. |
 | <img height="14" align="top" src="assets/integrations/ucp.svg" />&nbsp; **UCP** · <img height="14" align="top" src="assets/integrations/mpp.svg" />&nbsp; **MPP** | [Universal Commerce Protocol](https://ucp.dev) (delegated checkout) · [Machine Payments Protocol](https://mpp.dev) (rail-agnostic, instant). |
