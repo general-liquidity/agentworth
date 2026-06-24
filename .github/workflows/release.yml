@@ -44,6 +44,9 @@ jobs:
     name: PyPI (opensolvency)
     if: ${{ vars.PUBLISH_PYPI == 'true' }}
     runs-on: ubuntu-latest
+    # A dedicated publishing environment (configure protection rules under
+    # Settings → Environments → pypi). Must match the PyPI trusted-publisher config.
+    environment: pypi
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
