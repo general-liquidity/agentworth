@@ -79,7 +79,7 @@ One gate, reached from everywhere agents live - the same executor, mandates, ris
 | <img height="14" align="top" src="https://cdn.simpleicons.org/zedindustries/084CCF" />&nbsp; **ACP** | `opensolvency acp` | An [Agent Client Protocol](https://agentclientprotocol.com) surface - editors/IDEs drive the agent in-editor. |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/openapiinitiative/6BA539" />&nbsp; **HTTP** | `opensolvency serve` | The ingress - same gate over HTTP, OpenAPI 3.1 at `/openapi.json`, bearer-token auth, idempotency keys, rate limiting. |
 | **JSON-RPC** | `handleJsonRpcCall` | The operator-side method API for low-latency embedding (`pay`, `mandate.*`, `approve`, `audit.verify`). |
-| <img height="14" align="top" src="https://cdn.simpleicons.org/python/3776AB" />&nbsp; **Python** · <img height="14" align="top" src="https://cdn.simpleicons.org/go/00ADD8" />&nbsp; **Go** | [`clients/`](clients/) | Dependency-light REST clients over the ingress, for non-TS hosts. |
+| <img height="14" align="top" src="https://cdn.simpleicons.org/python/3776AB" />&nbsp; **Python** · <img height="14" align="top" src="https://cdn.simpleicons.org/go/00ADD8" />&nbsp; **Go** · <img height="14" align="top" src="https://cdn.simpleicons.org/rust/DEA584" />&nbsp; **Rust** · <img height="14" align="top" src="https://cdn.simpleicons.org/c/A8B9CC" />&nbsp; **C/C++** | [`clients/`](clients/) | Dependency-light REST clients over the ingress, for non-TS hosts. |
 
 ```ts
 import { OpenSolvency } from "@general-liquidity/opensolvency";

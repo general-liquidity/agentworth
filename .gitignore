@@ -5,3 +5,5 @@ dist/
 .DS_Store
 opensolvency.db
 opensolvency.db-*
+clients/rust/target/
+clients/rust/Cargo.lock

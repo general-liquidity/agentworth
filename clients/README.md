@@ -1,15 +1,24 @@
 # Language clients
 
 Thin REST clients for the OpenSolvency HTTP ingress, for the half of the agent
-ecosystem that isn't TypeScript. They add **no authority** — every payment they
+ecosystem that isn't TypeScript. They add **no authority** - every payment they
 submit runs through the same gate (auto-execute inside a mandate, park for approval,
 or block). Point them at a running `opensolvency serve` (set an ingress token for
-anything non-loopback).
+anything non-loopback). A `blocked` outcome is a normal result, not an error.
 
-Both are dependency-light (Python: standard library only; Go: standard library
-only) and track the OpenAPI document the ingress serves at `/openapi.json`.
+| Client | Path | Deps | Registry |
+|:--|:--|:--|:--|
+| **TypeScript** | (the main package) | - | npm `@general-liquidity/opensolvency` |
+| **Python** | `clients/python/` | stdlib only | PyPI `opensolvency` |
+| **Go** | `clients/go/` | stdlib only | `go get github.com/general-liquidity/opensolvency/clients/go` |
+| **Rust** | `clients/rust/` | `ureq`, `serde` | crates.io `opensolvency` |
+| **C / C++** | `clients/c/` | libcurl | source / vcpkg / Conan |
 
-## Python (`clients/python/`)
+> The TypeScript SDK (`@general-liquidity/opensolvency`) is the in-process,
+> full-feature surface; these REST clients are for cross-language hosts that talk to a
+> running ingress.
+
+## Python
 
 ```python
 from opensolvency import OpenSolvencyClient
@@ -18,15 +27,12 @@ os = OpenSolvencyClient("http://127.0.0.1:8787", token="...")
 res = os.pay(payee="tesco", payee_class="groceries", amount=8000,
              rationale="the weekly grocery shop")
 print(res["outcome"])   # settled | pending | blocked | failed
-print(os.status(), os.ready())
 ```
 
-Idempotency keys are generated per `pay()` (override with `idempotency_key=`).
-
-## Go (`clients/go/`)
+## Go
 
 ```go
-import "github.com/general-liquidity/opensolvency-go"
+import opensolvency "github.com/general-liquidity/opensolvency/clients/go"
 
 c := opensolvency.New("http://127.0.0.1:8787", "token")
 res, err := c.Pay(opensolvency.PaymentIntent{
@@ -36,6 +42,32 @@ res, err := c.Pay(opensolvency.PaymentIntent{
 // res.Outcome is settled | pending | blocked | failed
 ```
 
-> The TypeScript SDK (`@general-liquidity/opensolvency`) is the in-process,
-> full-feature surface; these REST clients are for cross-language hosts that talk to
-> a running ingress. A `blocked` outcome is a normal result, not an error.
+## Rust
+
+```rust
+use opensolvency::{Client, PaymentIntent};
+
+let c = Client::new("http://127.0.0.1:8787", Some("token".into()));
+let res = c.pay(&PaymentIntent {
+    payee: "tesco", payee_class: "groceries", amount: 8000,
+    currency: "GBP", rail: "card", rationale: "the weekly grocery shop",
+}, None)?;
+println!("{:?}", res.outcome); // settled | pending | blocked | failed
+```
+
+## C / C++
+
+```c
+#include "opensolvency.h"
+
+os_global_init();
+os_client_t *c = os_client_new("http://127.0.0.1:8787", "token");
+os_payment_intent_t intent = { "tesco", "groceries", 8000, "GBP", "card", "weekly shop" };
+os_response_t resp;
+if (os_pay(c, &intent, NULL, &resp) == 0)
+    printf("HTTP %ld: %s\n", resp.status, resp.body);   // body is raw JSON
+os_response_free(&resp);
+os_client_free(c);
+```
+
+Build with `make` (needs libcurl). The API is `extern "C"`, usable from C and C++.
