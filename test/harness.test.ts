@@ -63,6 +63,39 @@ test("an action that serves nothing is flagged caution", () => {
   assert.equal(c.verdict, "caution");
 });
 
+// --- soft-saving guardrail (work within the operator's stated values) ---
+
+test("moralising spending / guilt-tripping enjoyment is exploitative", () => {
+  const c = checkEmpowerment(action({ moralisesSpending: true }), { anxietyDriven: false });
+  assert.equal(c.verdict, "exploitative");
+  assert.ok(c.reasons.some((r) => r.includes("moralises spending")));
+});
+
+test("pushing thrift against a stated quality-of-life preference is exploitative", () => {
+  const c = checkEmpowerment(action({ pushesSavingOverStatedQoL: true }), {
+    anxietyDriven: false,
+    valuesQualityOfLife: true,
+  });
+  assert.equal(c.verdict, "exploitative");
+  assert.ok(c.reasons.some((r) => r.includes("quality-of-life")));
+});
+
+test("an anxiety-leaning nudge is exploitative", () => {
+  const c = checkEmpowerment(action({ exploitsAnxiety: true }), { anxietyDriven: true });
+  assert.equal(c.verdict, "exploitative");
+  assert.ok(c.reasons.some((r) => r.includes("anxiety")));
+});
+
+test("informing about a genuine concern, respecting values, still passes", () => {
+  // Saving advice that does NOT override the stated quality-of-life preference
+  // is ordinary information, not moralising — it stays empowering.
+  const c = checkEmpowerment(action({ pushesSavingOverStatedQoL: false }), {
+    anxietyDriven: false,
+    valuesQualityOfLife: true,
+  });
+  assert.equal(c.verdict, "empowering");
+});
+
 // --- communication mode (behaviour over knowledge) ---
 
 test("high anxiety selects reassure-first", () => {

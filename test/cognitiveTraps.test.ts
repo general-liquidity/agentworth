@@ -129,6 +129,36 @@ test("planning-is-redundant-because-uncertain: irregular income, or marker", () 
   );
 });
 
+test("savvy-means-no-fun: spender with surplus but no savings, or marker", () => {
+  // Structural: surplus going entirely to spending (no savings started).
+  assert.ok(
+    ids({ stage: "early-student", liquidSavingsMinor: 0 }).includes(
+      "savvy-means-no-fun",
+    ),
+  );
+  // Marker on an otherwise-clean profile.
+  assert.ok(
+    ids({}, "I can't enjoy life if I'm always saving — you only live once").includes(
+      "savvy-means-no-fun",
+    ),
+  );
+});
+
+test("retirement-distortion: career stage, retirement goal, nothing saved, or marker", () => {
+  // Structural: career-stage horizon but no buffer started.
+  assert.ok(
+    ids({ stage: "early-career", liquidSavingsMinor: 0 }).includes(
+      "retirement-distortion",
+    ),
+  );
+  // Marker on an otherwise-clean profile.
+  assert.ok(
+    ids({}, "I have retirement goals but it's all so far off").includes(
+      "retirement-distortion",
+    ),
+  );
+});
+
 test("every detected trap carries an action-first counter and evidence", () => {
   const detected = detectTraps(
     profile({
@@ -171,8 +201,8 @@ test("a marker match outweighs a clean profile (markers always surface)", () => 
   assert.ok(detected[0].relevance >= 50);
 });
 
-test("the catalogue exposes all seven traps with counters, no detection state", () => {
-  assert.equal(TRAP_CATALOGUE.length, 7);
+test("the catalogue exposes all nine traps with counters, no detection state", () => {
+  assert.equal(TRAP_CATALOGUE.length, 9);
   const expected: TrapId[] = [
     "real-job-unlocks-planning",
     "investing-is-gambling",
@@ -181,6 +211,8 @@ test("the catalogue exposes all seven traps with counters, no detection state", 
     "overwhelm-must-do-everything-at-once",
     "no-financial-family-so-adrift",
     "planning-is-redundant-because-uncertain",
+    "savvy-means-no-fun",
+    "retirement-distortion",
   ];
   assert.deepEqual(
     TRAP_CATALOGUE.map((t) => t.id),

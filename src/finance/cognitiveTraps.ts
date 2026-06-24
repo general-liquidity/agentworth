@@ -20,7 +20,9 @@ export type TrapId =
   | "defeatism"
   | "overwhelm-must-do-everything-at-once"
   | "no-financial-family-so-adrift"
-  | "planning-is-redundant-because-uncertain";
+  | "planning-is-redundant-because-uncertain"
+  | "savvy-means-no-fun"
+  | "retirement-distortion";
 
 export interface TrapDefinition {
   id: TrapId;
@@ -306,6 +308,94 @@ const SPECS: TrapSpec[] = [
       } else if (p.incomeVolatility === "variable") {
         score += 20;
         reasons.push("variable income — 'too uncertain to plan' rationalisation");
+      }
+      return { score, reasons };
+    },
+  },
+  {
+    // Research pattern (latest Networth batch): the spender's self-justification —
+    // "being financially savvy means not having fun." ~73% of the cohort value
+    // quality-of-life over saving, so "responsible" reads as "joyless". Counter:
+    // make being sensible cost ZERO fun — ONE small automated transfer so the
+    // present self never has to choose between enjoying life and being responsible.
+    id: "savvy-means-no-fun",
+    belief: "Being financially savvy means not having fun — I can't enjoy life and be responsible with money.",
+    markers: [
+      "can't enjoy",
+      "cant enjoy",
+      "no fun",
+      "not having fun",
+      "boring",
+      "quality of life",
+      "treat myself",
+      "you only live once",
+      "yolo",
+      "life is for living",
+      "rather enjoy it",
+      "miss out",
+      "fomo",
+      "depriving myself",
+    ],
+    counter:
+      "Make being sensible cost zero fun: set up ONE small automated transfer (e.g. £10 on payday) so a slice is saved before you spend — today-you never has to choose between enjoying life and being responsible.",
+    signal: (p) => {
+      const reasons: string[] = [];
+      let score = 0;
+      // The spender pattern: room to set a little aside, but it's all being spent.
+      if (monthlySurplusMinor(p) > 0 && p.liquidSavingsMinor <= 0) {
+        score += 35;
+        reasons.push("has surplus but nothing saved — surplus going entirely to spending");
+      }
+      // Earliest life-stages weight quality-of-life over saving most heavily.
+      if (p.stage === "early-student" || p.stage === "late-student") {
+        score += 15;
+        reasons.push("early life-stage — quality-of-life prioritised over saving");
+      }
+      return { score, reasons };
+    },
+  },
+  {
+    // Research pattern (latest Networth batch): people hold retirement aspirations
+    // with ZERO financial planning — conflating "planning my life" with "planning
+    // my finances". The distortion is between WANTING to retire and the financial
+    // ABILITY to. "Far off" is used to defer the first tiny step indefinitely.
+    // Counter: one small automated long-horizon step now, so the goal starts
+    // compounding instead of staying a wish.
+    id: "retirement-distortion",
+    belief: "I have retirement goals but planning for them is too far off to start now.",
+    markers: [
+      "retirement",
+      "retire",
+      "pension",
+      "far off",
+      "far away",
+      "ages away",
+      "decades away",
+      "too early to think about",
+      "when i'm older",
+      "when im older",
+      "down the line",
+      "future me can",
+      "plenty of time",
+    ],
+    counter:
+      "Turn the wish into a compounding step: set one tiny automated long-horizon contribution now (e.g. a small recurring pension or LISA payment). Far-off goals only move if the first small step starts today.",
+    signal: (p) => {
+      const reasons: string[] = [];
+      let score = 0;
+      // Holds a long horizon (career stages think about retirement) but no buffer
+      // started — the gap between wanting to retire and the financial ability to.
+      if (
+        (p.stage === "early-career" || p.stage === "established") &&
+        p.liquidSavingsMinor <= 0
+      ) {
+        score += 35;
+        reasons.push("career stage with retirement horizon but nothing set aside yet");
+      }
+      // Capacity to start a long-horizon contribution but it hasn't begun.
+      if (monthlySurplusMinor(p) > 0 && p.liquidSavingsMinor <= 0) {
+        score += 15;
+        reasons.push("has surplus to start a long-horizon step but none running");
       }
       return { score, reasons };
     },

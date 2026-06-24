@@ -11,6 +11,16 @@ export interface ProposedAction {
   manufacturesUrgency: boolean; // "act now or lose out" pressure
   exploitsAnxiety: boolean; // leans on the operator's financial fear
   servesResilienceOrGoal: boolean; // tied to a pillar or a stated goal
+
+  // Soft-saving guardrail. The 2024/25 cohort research is blunt: 73% value
+  // quality-of-life over extra savings ("soft saving"), and money already
+  // negatively affects 52%'s mental health. So moralising thrift, or pushing
+  // saving against a stated quality-of-life preference, is itself a harm — the
+  // agent must work WITHIN the operator's values, not against them. The line is
+  // moralising/guilt-tripping/anxiety-leaning, NOT informing: surfacing a
+  // genuine concern is still empowering.
+  moralisesSpending?: boolean; // guilt-trips enjoyment / preaches thrift as virtue
+  pushesSavingOverStatedQoL?: boolean; // overrides a stated quality-of-life preference to save more
 }
 
 export type EthicVerdict = "empowering" | "caution" | "exploitative";
@@ -22,7 +32,7 @@ export interface EthicCheck {
 
 export function checkEmpowerment(
   action: ProposedAction,
-  ctx: { anxietyDriven: boolean },
+  ctx: { anxietyDriven: boolean; valuesQualityOfLife?: boolean },
 ): EthicCheck {
   const reasons: string[] = [];
 
@@ -34,6 +44,16 @@ export function checkEmpowerment(
   }
   if (action.exploitsAnxiety || (ctx.anxietyDriven && action.manufacturesUrgency)) {
     reasons.push("leans on the operator's financial anxiety");
+  }
+  if (action.moralisesSpending) {
+    reasons.push("moralises spending / guilt-trips enjoyment — soft-saving harm");
+  }
+  // Pushing saving harder is only a violation when it overrides a stated
+  // quality-of-life preference; absent that preference it's ordinary advice.
+  if (action.pushesSavingOverStatedQoL && ctx.valuesQualityOfLife) {
+    reasons.push(
+      "pushes saving/thrift against the operator's stated quality-of-life preference",
+    );
   }
 
   if (reasons.length > 0) {

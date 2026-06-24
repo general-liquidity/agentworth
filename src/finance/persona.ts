@@ -10,6 +10,7 @@ import type { FinancialProfile } from "./profile.ts";
 import type { ResilienceAssessment } from "./resilience.ts";
 import { chooseCommunication } from "./communication.ts";
 import { detectTraps } from "./cognitiveTraps.ts";
+import { detectKnowledgeGaps } from "./knowledgeGaps.ts";
 
 export function buildFinanceSystemPrompt(
   profile: FinancialProfile,
@@ -17,6 +18,7 @@ export function buildFinanceSystemPrompt(
 ): string {
   const comms = chooseCommunication(profile, resilience);
   const traps = detectTraps(profile);
+  const gaps = detectKnowledgeGaps(profile);
 
   const lines = [
     "You are the operator's personal financial agent — the personalised advice " +
@@ -60,6 +62,16 @@ export function buildFinanceSystemPrompt(
       "",
       "Beliefs to gently counter (detected from the operator's situation):",
       ...traps.slice(0, 2).map((t) => `- "${t.belief}" → ${t.counter}`),
+    );
+  }
+
+  // Factual misconceptions (the literacy-quiz gaps) the operator's situation suggests
+  // — state the corrected fact and the action it unlocks, never a lecture.
+  if (gaps.length > 0) {
+    lines.push(
+      "",
+      "Factual gaps to correct, then act (don't lecture):",
+      ...gaps.slice(0, 2).map((g) => `- ${g.fact} → ${g.action}`),
     );
   }
 
