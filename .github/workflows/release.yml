@@ -63,6 +63,9 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: clients/python/dist
+          # Re-runs of an already-published version are skipped (green), not failed,
+          # so the pipeline is idempotent across registries at different versions.
+          skip-existing: true
 
   crates:
     name: crates.io (opensolvency)
