@@ -55,6 +55,17 @@ pub struct PayResult {
     pub verified: Option<bool>,
 }
 
+/// The verifier-as-a-service verdict for a submitted disclosure.
+#[derive(Debug, Deserialize)]
+pub struct Verdict {
+    /// "transact" | "refuse"
+    pub decision: Option<String>,
+    /// "cached" | "fresh"
+    pub tier: Option<String>,
+    #[serde(default)]
+    pub reasons: Vec<String>,
+}
+
 impl Client {
     pub fn new(base_url: impl Into<String>, token: Option<String>) -> Self {
         let mut b = base_url.into();
@@ -113,6 +124,32 @@ impl Client {
     pub fn ready(&self) -> Result<serde_json::Value, ureq::Error> {
         Ok(self.request("GET", "/ready").call()?.into_json()?)
     }
+
+    /// Fetch this node's signed Verifiable Agency disclosure (public, no auth).
+    pub fn get_disclosure(&self) -> Result<serde_json::Value, ureq::Error> {
+        Ok(self
+            .request("GET", "/.well-known/agent-disclosure")
+            .call()?
+            .into_json()?)
+    }
+
+    /// Verifier-as-a-service: submit a signed disclosure, get a verdict. Lets a
+    /// heterogeneous counterparty verify a peer without implementing ed25519. A
+    /// `refuse` verdict is a normal result; `Err` only on transport/decoding failure.
+    pub fn verify_disclosure(
+        &self,
+        disclosure: &serde_json::Value,
+    ) -> Result<Verdict, ureq::Error> {
+        let result = self
+            .request("POST", "/verify-disclosure")
+            .send_json(disclosure);
+        let resp = match result {
+            Ok(r) => r,
+            Err(ureq::Error::Status(_code, r)) => r,
+            Err(e) => return Err(e),
+        };
+        Ok(resp.into_json()?)
+    }
 }
 
 fn gen_key() -> String {
@@ -152,5 +189,13 @@ mod tests {
     #[test]
     fn gen_key_is_hex() {
         assert!(gen_key().chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn verdict_deserializes() {
+        let v: Verdict =
+            serde_json::from_str(r#"{"decision":"transact","tier":"fresh","reasons":[]}"#).unwrap();
+        assert_eq!(v.decision.as_deref(), Some("transact"));
+        assert_eq!(v.tier.as_deref(), Some("fresh"));
     }
 }

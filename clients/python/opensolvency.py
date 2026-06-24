@@ -90,3 +90,14 @@ class OpenSolvencyClient:
     def openapi(self) -> dict:
         """The served OpenAPI 3.1 document."""
         return self._request("GET", "/openapi.json")[1] or {}
+
+    def get_disclosure(self) -> dict:
+        """Fetch this node's signed Verifiable Agency disclosure (public, no auth)."""
+        return self._request("GET", "/.well-known/agent-disclosure")[1] or {}
+
+    def verify_disclosure(self, disclosure: dict) -> dict:
+        """Verifier-as-a-service: submit a signed disclosure, get a verdict
+        {decision, tier, checks, reasons, cost}. Lets a heterogeneous counterparty
+        verify a peer without implementing ed25519 itself. A "refuse" decision is a
+        normal result, not an error."""
+        return self._request("POST", "/verify-disclosure", disclosure)[1] or {}

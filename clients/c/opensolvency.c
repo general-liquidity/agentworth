@@ -211,3 +211,14 @@ int os_get(os_client_t *c, const char *path, os_response_t *out) {
   if (!c || !path || !out) return -1;
   return perform(c, "GET", path, NULL, NULL, out);
 }
+
+int os_get_disclosure(os_client_t *c, os_response_t *out) {
+  if (!c || !out) return -1;
+  return perform(c, "GET", "/.well-known/agent-disclosure", NULL, NULL, out);
+}
+
+int os_verify_disclosure(os_client_t *c, const char *disclosure_json,
+                         os_response_t *out) {
+  if (!c || !disclosure_json || !out) return -1;
+  return perform(c, "POST", "/verify-disclosure", disclosure_json, NULL, out);
+}

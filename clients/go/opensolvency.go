@@ -106,6 +106,38 @@ func (c *Client) Pay(intent PaymentIntent, idempotencyKey string) (*Result, erro
 	return &r, nil
 }
 
+// Verdict is the verifier-as-a-service result for a submitted disclosure.
+type Verdict struct {
+	Decision string          `json:"decision"` // transact | refuse
+	Tier     string          `json:"tier"`     // cached | fresh
+	Checks   map[string]bool `json:"checks"`
+	Reasons  []string        `json:"reasons"`
+}
+
+// GetDisclosure fetches this node's signed Verifiable Agency disclosure (public).
+func (c *Client) GetDisclosure() (json.RawMessage, error) {
+	_, data, err := c.do("GET", "/.well-known/agent-disclosure", nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(data), nil
+}
+
+// VerifyDisclosure submits a signed disclosure to the verifier-as-a-service
+// endpoint and returns the verdict. A "refuse" verdict is a normal result; err is
+// non-nil only on a transport/decoding failure.
+func (c *Client) VerifyDisclosure(disclosure json.RawMessage) (*Verdict, error) {
+	_, data, err := c.do("POST", "/verify-disclosure", disclosure, nil)
+	if err != nil {
+		return nil, err
+	}
+	var v Verdict
+	if err := json.Unmarshal(data, &v); err != nil {
+		return nil, fmt.Errorf("decode verdict: %w", err)
+	}
+	return &v, nil
+}
+
 // Status returns the kill-switch / circuit-breaker state.
 func (c *Client) Status() (map[string]any, error) {
 	return c.getJSON("/status")

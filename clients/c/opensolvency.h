@@ -49,6 +49,17 @@ int os_pay(os_client_t *client, const os_payment_intent_t *intent,
 /* GET a path (e.g. "/status", "/ready"). Same return contract as os_pay. */
 int os_get(os_client_t *client, const char *path, os_response_t *out);
 
+/* Fetch this node's signed Verifiable Agency disclosure
+ * (GET /.well-known/agent-disclosure). Same return contract as os_pay. */
+int os_get_disclosure(os_client_t *client, os_response_t *out);
+
+/* Verifier-as-a-service: POST a signed disclosure to /verify-disclosure and read
+ * back the verdict JSON. `disclosure_json` is a NUL-terminated JSON string. Lets a
+ * heterogeneous counterparty verify a peer without implementing ed25519. Same
+ * return contract as os_pay (a "refuse" verdict is a normal HTTP 200 result). */
+int os_verify_disclosure(os_client_t *client, const char *disclosure_json,
+                         os_response_t *out);
+
 void os_response_free(os_response_t *resp);
 
 /* Optional one-time libcurl init/cleanup helpers (thin wrappers over
