@@ -27,6 +27,8 @@ import type {
   CapitalEnvelope,
   DeploymentHistory,
   RedTeamAttestation,
+  ModelIdentity,
+  FieldProvenance,
   SignedDisclosure,
 } from "./schema.ts";
 import { DISCLOSURE_SCHEMA_VERSION } from "./schema.ts";
@@ -70,6 +72,9 @@ export interface BuildDisclosureDeps {
   toolInventory?: ToolInventory;
   /** a SpendTrust run to attest to (the red-team field) */
   spendTrust?: { corpus: { name: string; version: string }; result: TrustScore };
+  /** the model the agent declares it runs on (the declarable half of the
+   *  model-swap defense; runtime TEE attestation is the open P2 item) */
+  model?: { name: string; identifier: string };
 }
 
 function buildConstitution(): Constitution {
@@ -154,6 +159,27 @@ function buildRedTeam(
   };
 }
 
+function buildModel(input: NonNullable<BuildDisclosureDeps["model"]>): ModelIdentity {
+  return { name: input.name, fingerprintAlgorithm: "sha256", digest: sha256Hex(input.identifier) };
+}
+
+// Each field stamped with how it was derived, so a verifier can WEIGHT claims:
+// a field bound to the enforced gate or the signed chain is worth more than a
+// self-asserted one. `attestedBy` is set only where the source is itself attested.
+function buildProvenance(deps: BuildDisclosureDeps): Record<string, FieldProvenance> {
+  const p: Record<string, FieldProvenance> = {
+    systemPrompt: { derivedFrom: "persona (sha256 of composed system prompt)" },
+    constitution: { derivedFrom: "opensolvency-gate (DEFAULT_DENY_RULES + gate config)", attestedBy: "opensolvency-gate" },
+    tools: { derivedFrom: "agent tool surface + permission boundary" },
+    capital: { derivedFrom: "mandate store (operator-granted)" },
+    operator: { derivedFrom: "operator configuration" },
+    history: { derivedFrom: "signed hash-linked audit chain", attestedBy: "audit-chain" },
+  };
+  if (deps.spendTrust) p.redTeam = { derivedFrom: "spendtrust adversarial corpus", attestedBy: "spendtrust" };
+  if (deps.model) p.model = { derivedFrom: "operator-declared model identity" };
+  return p;
+}
+
 /** Build the disclosure document from the live OpenSolvency runtime. */
 export function buildAgentDisclosure(deps: BuildDisclosureDeps): AgentDisclosure {
   const agentId = deps.agentKey.publicKeyHex;
@@ -178,6 +204,8 @@ export function buildAgentDisclosure(deps: BuildDisclosureDeps): AgentDisclosure
     },
     history,
     redTeam: deps.spendTrust ? buildRedTeam(deps.spendTrust, deps.now) : undefined,
+    model: deps.model ? buildModel(deps.model) : undefined,
+    provenance: buildProvenance(deps),
   };
 }
 

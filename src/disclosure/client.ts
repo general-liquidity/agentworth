@@ -5,7 +5,7 @@
 //
 // Vendor-neutral: depends on the schema/verify/handshake + an injected fetch.
 
-import { parseSignedDisclosure } from "./schema.ts";
+import { parseSignedDisclosure, type SignedDisclosure } from "./schema.ts";
 import { evaluateDisclosure, type VerificationPolicy, type DisclosureVerdict } from "./verify.ts";
 import {
   createChallenge,
@@ -54,12 +54,12 @@ export async function verifyCounterparty(
   const base = baseUrl.replace(/\/$/, "");
   const refuse = (reason: string, disclosure?: DisclosureVerdict): CounterpartyVerdict => ({
     decision: "refuse",
-    disclosure: disclosure ?? { decision: "refuse", checks: {}, reasons: [reason] },
+    disclosure: disclosure ?? { decision: "refuse", checks: {}, reasons: [reason], cost: { checksRun: 0, wallMicros: 0 } },
     reasons: [reason],
   });
 
   // 1. Fetch + structurally parse the disclosure.
-  let signed;
+  let signed: SignedDisclosure;
   try {
     const res = await fetch(`${base}/.well-known/agent-disclosure`);
     if (!res.ok) return refuse(`disclosure fetch failed (HTTP ${res.status})`);

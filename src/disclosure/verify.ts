@@ -45,6 +45,21 @@ export interface VerificationPolicy {
   requireDeploymentHistory?: boolean;
   /** require the disclosure be bound to an audit anchor (tamper-evidence) */
   requireAuditAnchor?: boolean;
+  /** the disclosure must declare a model identity (model-swap defense, declared half) */
+  requireModelFingerprint?: boolean;
+  /** the declared model digest must be one of these (pin the counterparty's model) */
+  allowedModelDigests?: string[];
+  /** these top-level fields must carry provenance, so the verifier can weight them */
+  requireProvenanceFor?: string[];
+  /** revocation oracle: returns true if the disclosureId OR agentId is revoked.
+   *  Injected so this layer stays vendor-neutral (see ./revocation.ts). */
+  isRevoked?: (id: string) => boolean;
+  /** operator reputation oracle (0..1), for the collusion / sock-puppet signal.
+   *  The hard deny-list is the floor (requiredHardConstraints); reputation is the
+   *  graded signal a colluding operator cannot fake without a track record. */
+  operatorReputation?: (operatorId: string) => number;
+  /** minimum operator reputation; only enforced when operatorReputation is supplied */
+  minOperatorReputation?: number;
 }
 
 export interface DisclosureVerdict {
@@ -53,6 +68,11 @@ export interface DisclosureVerdict {
   checks: Record<string, boolean>;
   /** human-readable failures (empty when transact) */
   reasons: string[];
+  /** marginal-cost instrumentation: makes the proposal's economic thesis literal.
+   *  `checksRun` is the number of policy predicates evaluated; `wallMicros` the
+   *  wall time. Verification is deterministic + cheap, which is what lets it run
+   *  before every transaction (see ./economics.ts). */
+  cost: { checksRun: number; wallMicros: number };
 }
 
 /**
@@ -64,6 +84,7 @@ export function evaluateDisclosure(
   signed: SignedDisclosure,
   policy: VerificationPolicy,
 ): DisclosureVerdict {
+  const startedAt = performance.now();
   const checks: Record<string, boolean> = {};
   const reasons: string[] = [];
   const fail = (name: string, reason: string) => {
@@ -141,10 +162,47 @@ export function evaluateDisclosure(
       : fail("auditAnchor", "disclosure is not bound to an audit anchor");
   }
 
+  // Declared model identity (the model-swap defense's declarable half).
+  if (policy.requireModelFingerprint) {
+    d.model ? pass("modelFingerprint") : fail("modelFingerprint", "no declared model identity");
+  }
+  if (policy.allowedModelDigests?.length) {
+    d.model && policy.allowedModelDigests.includes(d.model.digest)
+      ? pass("modelDigest")
+      : fail("modelDigest", d.model ? "declared model digest is not in the allowed set" : "no declared model to match");
+  }
+
+  // Provenance: a verifier that weights claims can demand to know how a field was derived.
+  if (policy.requireProvenanceFor?.length) {
+    const prov = d.provenance ?? {};
+    const missing = policy.requireProvenanceFor.filter((f) => !prov[f]);
+    missing.length === 0
+      ? pass("provenance")
+      : fail("provenance", `missing provenance for: ${missing.join(", ")}`);
+  }
+
+  // Revocation: a compromised or decommissioned identity is refused even if the
+  // (still-signed, still-fresh) disclosure looks valid.
+  if (policy.isRevoked) {
+    policy.isRevoked(d.disclosureId) || policy.isRevoked(d.agentId)
+      ? fail("revocation", "disclosure or agent identity is revoked")
+      : pass("revocation");
+  }
+
+  // Operator reputation (collusion / sock-puppet signal). The deny-list floor is the
+  // hard guarantee; this is the graded signal that needs a real track record.
+  if (policy.operatorReputation && policy.minOperatorReputation !== undefined) {
+    const score = policy.operatorReputation(d.operator.operatorId);
+    score >= policy.minOperatorReputation
+      ? pass("operatorReputation")
+      : fail("operatorReputation", `operator reputation ${score.toFixed(2)} below minimum ${policy.minOperatorReputation}`);
+  }
+
   return {
     decision: reasons.length === 0 ? "transact" : "refuse",
     checks,
     reasons,
+    cost: { checksRun: Object.keys(checks).length, wallMicros: Math.round((performance.now() - startedAt) * 1000) },
   };
 }
 
@@ -158,6 +216,7 @@ export function verifyAndEvaluate(rawSigned: unknown, policy: VerificationPolicy
       decision: "refuse",
       checks: { schema: false },
       reasons: [`malformed disclosure: ${e instanceof Error ? e.message : String(e)}`],
+      cost: { checksRun: 1, wallMicros: 0 },
     };
   }
   return evaluateDisclosure(signed, policy);

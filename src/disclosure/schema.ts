@@ -142,6 +142,27 @@ export const RedTeamAttestationSchema = z.object({
   attestationRef: z.string().optional(),
 });
 
+// ── Declared model identity (the model-swap defense, declared half) ──────────
+// A fingerprint of the model the agent declares it runs on. This is the cheap,
+// declarable half; cryptographically proving the RUNNING model matches at
+// transact-time needs hardware (TEE) attestation - the honest open P2 item.
+export const ModelIdentitySchema = z.object({
+  name: z.string(),
+  fingerprintAlgorithm: z.literal("sha256"),
+  /** digest of a declared model identifier / weights manifest */
+  digest: Hex,
+});
+
+// ── Field-level provenance ───────────────────────────────────────────────────
+// How each field was derived/attested, so a verifier can WEIGHT claims (a field
+// bound to an enforced gate is worth more than a self-asserted one).
+export const FieldProvenanceSchema = z.object({
+  /** where the field came from, e.g. "opensolvency-gate", "audit-chain", "spendtrust" */
+  derivedFrom: z.string(),
+  /** an attestation reference, if the source is itself attested */
+  attestedBy: z.string().optional(),
+});
+
 // ── The disclosure document ──────────────────────────────────────────────────
 export const AgentDisclosureSchema = z.object({
   version: z.literal(DISCLOSURE_SCHEMA_VERSION),
@@ -165,6 +186,11 @@ export const AgentDisclosureSchema = z.object({
   operator: OperatorIdentitySchema,
   history: DeploymentHistorySchema,
   redTeam: RedTeamAttestationSchema.optional(),
+  /** declared model identity (the declarable half of the model-swap defense) */
+  model: ModelIdentitySchema.optional(),
+  /** per-field derivation/attestation, so a verifier can weight claims.
+   *  keyed by top-level field name (e.g. "constitution", "history"). */
+  provenance: z.record(z.string(), FieldProvenanceSchema).optional(),
 });
 
 // ── The signed envelope ──────────────────────────────────────────────────────
@@ -192,6 +218,8 @@ export type CapitalEnvelope = z.infer<typeof CapitalEnvelopeSchema>;
 export type OperatorIdentity = z.infer<typeof OperatorIdentitySchema>;
 export type DeploymentHistory = z.infer<typeof DeploymentHistorySchema>;
 export type RedTeamAttestation = z.infer<typeof RedTeamAttestationSchema>;
+export type ModelIdentity = z.infer<typeof ModelIdentitySchema>;
+export type FieldProvenance = z.infer<typeof FieldProvenanceSchema>;
 export type AgentDisclosure = z.infer<typeof AgentDisclosureSchema>;
 export type SignedDisclosure = z.infer<typeof SignedDisclosureSchema>;
 

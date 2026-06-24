@@ -18,6 +18,8 @@ export {
   OperatorIdentitySchema,
   DeploymentHistorySchema,
   RedTeamAttestationSchema,
+  ModelIdentitySchema,
+  FieldProvenanceSchema,
   parseDisclosure,
   parseSignedDisclosure,
   type AgentDisclosure,
@@ -32,6 +34,8 @@ export {
   type OperatorIdentity,
   type DeploymentHistory,
   type RedTeamAttestation,
+  type ModelIdentity,
+  type FieldProvenance,
 } from "./schema.ts";
 
 // Attestation primitives (vendor-neutral)
@@ -88,3 +92,24 @@ export {
   type CounterpartyVerdict,
   type VerifyCounterpartyOptions,
 } from "./client.ts";
+
+// Outbound disclose-before-settle + mutual disclosure (vendor-neutral)
+export * from "./guard.ts";
+
+// Tiered verification + validity-window cache (vendor-neutral)
+export * from "./cache.ts";
+
+// Selective / redactable disclosure (vendor-neutral)
+export * from "./redaction.ts";
+
+// Revocation status list (vendor-neutral)
+export * from "./revocation.ts";
+
+// Transparency log - CT-for-agents (vendor-neutral)
+export * from "./transparency.ts";
+
+// Economic-viability model (vendor-neutral)
+export * from "./economics.ts";
+
+// The OpenSolvency reference adversarial corpus (does NOT lift out)
+export * from "./corpus.ts";
