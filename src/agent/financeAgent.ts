@@ -43,6 +43,8 @@ import { findOptimizations, type MarketRates } from "../finance/optimizations.ts
 import { REFERENCE_MARKET_RATES } from "../finance/referenceRates.ts";
 import { chooseCommunication } from "../finance/communication.ts";
 import { rankSlips } from "../finance/slipCost.ts";
+import { retirementSummary } from "../finance/retirementSim.ts";
+import { peerNudges } from "../finance/peerNudge.ts";
 
 export interface FinanceAgentDeps {
   model: LanguageModel;
@@ -278,6 +280,39 @@ function financeTools(deps: FinanceAgentDeps, anxietyDriven: boolean, sink: Exec
           annualGrowthRate:
             annualGrowthRate ?? (deps.marketRates ?? REFERENCE_MARKET_RATES).bestSavingsRate,
         }),
+    }),
+    retirement_sim: tool({
+      description:
+        "Show how a present decision changes the retirement outcome: projected pot, what " +
+        "£X/mo more buys, and what waiting N years costs. Advisory — moves no money.",
+      inputSchema: z.object({
+        currentPotMinor: z.number().int().nonnegative(),
+        monthlyContributionMinor: z.number().int().nonnegative(),
+        yearsToRetirement: z.number().int().positive(),
+        annualGrowthRate: z.number().nonnegative().optional(),
+        deltaMonthlyMinor: z.number().int().optional(),
+        delayYears: z.number().int().positive().optional(),
+      }),
+      execute: async ({ annualGrowthRate, ...rest }) =>
+        retirementSummary({
+          ...rest,
+          annualGrowthRate:
+            annualGrowthRate ?? (deps.marketRates ?? REFERENCE_MARKET_RATES).bestSavingsRate,
+        }),
+    }),
+    peer_nudge: tool({
+      description:
+        "Surface social-proof nudges: where peers (a like-you cohort) are ahead, the one " +
+        "encouraging step to join them. Possibility-framed, never shaming. Advisory — moves no money.",
+      inputSchema: z.object({
+        label: z.string(),
+        medianMonthlySaveMinor: z.number().int().nonnegative(),
+        fractionWithIsaOrLisa: z.number().min(0).max(1),
+        medianEmergencyBufferMonths: z.number().nonnegative(),
+        valuesQualityOfLife: z.boolean().optional(),
+      }),
+      execute: async ({ valuesQualityOfLife, ...benchmark }) =>
+        peerNudges(deps.profile, benchmark, { valuesQualityOfLife }),
     }),
   };
 }
