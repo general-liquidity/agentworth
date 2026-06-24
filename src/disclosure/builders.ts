@@ -10,7 +10,15 @@ import { DEFAULT_GATE_CONFIG } from "../core/types.ts";
 import type { Store } from "../core/store.ts";
 import type { AuditLog } from "../core/audit.ts";
 import type { TrustScore } from "../benchmark/spendTrust.ts";
-import { sha256Hex, canonicalize, signDisclosure, type AgentKeyPair } from "./attestation.ts";
+import {
+  sha256Hex,
+  canonicalize,
+  signDisclosure,
+  generateAgentKeyPair,
+  exportAgentKey,
+  agentKeyFromPrivateHex,
+  type AgentKeyPair,
+} from "./attestation.ts";
 import type {
   AgentDisclosure,
   Constitution,
@@ -176,4 +184,18 @@ export function buildAgentDisclosure(deps: BuildDisclosureDeps): AgentDisclosure
 /** Build + sign in one call - the end-to-end "emit a verifiable disclosure" path. */
 export function buildAndSignDisclosure(deps: BuildDisclosureDeps): SignedDisclosure {
   return signDisclosure(buildAgentDisclosure(deps), deps.agentKey);
+}
+
+const DISCLOSURE_KEY_META = "disclosure_key";
+
+/** Load the agent's stable signing identity from the store, minting + persisting one
+ *  on first use. The private key lives in operator-only meta (never an agent tool),
+ *  so the agentId is the same across restarts - which is what makes a counterparty's
+ *  reputation of the agent meaningful over time. */
+export function loadOrCreateAgentKey(store: Store): AgentKeyPair {
+  const stored = store.getMeta(DISCLOSURE_KEY_META);
+  if (stored) return agentKeyFromPrivateHex(stored);
+  const key = generateAgentKeyPair();
+  store.setMeta(DISCLOSURE_KEY_META, exportAgentKey(key));
+  return key;
 }

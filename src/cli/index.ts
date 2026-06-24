@@ -14,7 +14,7 @@
 // Amounts are integer minor-units (8000 = £80.00).
 
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { AuditLog } from "../core/audit.ts";
 import { createExecutor } from "../core/executor.ts";
 import { DEFAULT_GATE_CONFIG } from "../core/types.ts";
@@ -42,6 +42,13 @@ import { VERSION } from "../version.ts";
 import { runEvalSuite } from "../evals/index.ts";
 import { exportAuditChain, verifyAuditExport } from "../audit/export.ts";
 import { rankSpendTrust, REFERENCE_SUBMISSIONS, type SpendTrustSubmission } from "../benchmark/spendTrust.ts";
+import {
+  buildAndSignDisclosure,
+  loadOrCreateAgentKey,
+  verifyAndEvaluate,
+  type Grade,
+  type VerificationPolicy,
+} from "../disclosure/index.ts";
 import { renderTimeline } from "../obs/replay.ts";
 import { replayAudit } from "../obs/replaySim.ts";
 import { buildProfile } from "../finance/onboarding.ts";
@@ -441,6 +448,53 @@ async function main(): Promise<void> {
     return;
   }
 
+  // ── disclose: emit a signed agent disclosure (Verifiable Agency) ─────────────
+  if (command === "disclose") {
+    const f = parseFlags([sub, ...rest].filter(Boolean));
+    const agentKey = loadOrCreateAgentKey(store);
+    const signed = buildAndSignDisclosure({
+      store,
+      audit,
+      agentKey,
+      systemPrompt: "OpenSolvency spending agent: every payment passes the governance gate.",
+      operator: {
+        id: f["operator-id"] ?? "operator",
+        deniabilityBoundary:
+          f.deniability ??
+          "The operator authorizes spend only within the disclosed mandates; not liable for counterparty conduct.",
+      },
+      now: clock(),
+      nonce: randomUUID(),
+    });
+    const json = JSON.stringify(signed, null, 2);
+    if (f.out) writeFileSync(f.out, json);
+    else console.log(json);
+    return;
+  }
+
+  // ── verify-disclosure: a counterparty checks a disclosure before transacting ──
+  if (command === "verify-disclosure") {
+    if (!sub) {
+      console.log("usage: opensolvency verify-disclosure <file> [--require-grade B] [--require-enforced] [--require-non-custodial]");
+      return;
+    }
+    const f = parseFlags(rest);
+    const policy: VerificationPolicy = {
+      now: clock(),
+      requireEnforcedConstitution: f["require-enforced"] === "true",
+      requireNonCustodial: f["require-non-custodial"] === "true",
+      requireRedTeam: f["require-redteam"] === "true",
+      minRedTeamGrade: (f["require-grade"] as Grade | undefined) ?? undefined,
+      requireDeploymentHistory: f["require-history"] === "true",
+      requireAuditAnchor: f["require-anchor"] === "true",
+    };
+    const verdict = verifyAndEvaluate(JSON.parse(readFileSync(sub, "utf8")), policy);
+    console.log(`${verdict.decision.toUpperCase()}${verdict.reasons.length ? ":" : ""}`);
+    for (const r of verdict.reasons) console.log(`  - ${r}`);
+    if (verdict.decision === "refuse") process.exitCode = 1;
+    return;
+  }
+
   // ── benchmark: SpendTrust — rank how safely agents spend ─────────────────────
   if (command === "benchmark") {
     const subs: SpendTrustSubmission[] = sub
@@ -566,7 +620,8 @@ async function main(): Promise<void> {
       "agent|finance|profile set|profile show|goal set|pending|approve [--ack]|" +
       "kill|unkill|reset-breaker|status|audit verify|audit log|audit replay|" +
       "audit replay-sim [--mandates file.json]|audit export|audit verify-export <file>|" +
-      "serve [--port N]|token set <token>|mcp|acp|evals|benchmark [subs.json]>",
+      "serve [--port N]|token set <token>|mcp|acp|evals|benchmark [subs.json]|" +
+      "disclose [--out f]|verify-disclosure <file>>",
   );
 }
 

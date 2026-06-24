@@ -31,6 +31,15 @@ semantic versioning once it reaches 1.0.
     signed audit-chain head, and a SpendTrust run — proven end-to-end (build → sign
     → verify → policy → transact/refuse, with tamper / forged-identity / staleness /
     grade-threshold all caught).
+  - **Verification handshake** (`handshake.ts`): a live ed25519 challenge-response —
+    the verifier issues a nonce, the agent signs it bound to its current audit-chain
+    head — proving live key possession and history currency. Closes the identity-
+    replay gap a static disclosure can't (replay, wrong-key, and stale responses all
+    rejected). Plus agent-key persistence (`loadOrCreateAgentKey`) so the signing
+    identity is stable across restarts.
+  - **CLI**: `opensolvency disclose [--out f]` emits a signed disclosure;
+    `verify-disclosure <file> [--require-grade B] [--require-enforced] …]` runs a
+    counterparty policy and exits non-zero on refuse.
 
 ## [0.1.1] — 2026-06-24
 

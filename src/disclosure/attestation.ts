@@ -6,6 +6,7 @@
 
 import {
   createHash,
+  createPrivateKey,
   createPublicKey,
   generateKeyPairSync,
   sign as edSign,
@@ -39,6 +40,35 @@ function publicKeyFromHex(hex: string): KeyObject {
   return createPublicKey({ key: Buffer.concat([SPKI_ED25519_PREFIX, raw]), format: "der", type: "spki" });
 }
 
+/** Sign an arbitrary UTF-8 message with the agent key (hex signature). The generic
+ *  primitive the disclosure signing + the challenge handshake both build on. */
+export function signMessage(message: string, key: AgentKeyPair): string {
+  return edSign(null, Buffer.from(message, "utf8"), key.privateKey).toString("hex");
+}
+
+/** Verify a hex signature over a UTF-8 message against an ed25519 public key (hex). */
+export function verifyMessage(message: string, publicKeyHex: string, signatureHex: string): boolean {
+  try {
+    return edVerify(null, Buffer.from(message, "utf8"), publicKeyFromHex(publicKeyHex), Buffer.from(signatureHex, "hex"));
+  } catch {
+    return false;
+  }
+}
+
+/** Serialize the private key (PKCS8 DER hex) so an agent's signing identity is
+ *  stable across restarts. Pair with `agentKeyFromPrivateHex`. */
+export function exportAgentKey(key: AgentKeyPair): string {
+  return (key.privateKey.export({ type: "pkcs8", format: "der" }) as Buffer).toString("hex");
+}
+
+/** Reconstruct a full key pair from a persisted private key (PKCS8 DER hex). */
+export function agentKeyFromPrivateHex(hex: string): AgentKeyPair {
+  const privateKey = createPrivateKey({ key: Buffer.from(hex, "hex"), format: "der", type: "pkcs8" });
+  const publicKey = createPublicKey(privateKey);
+  const der = publicKey.export({ type: "spki", format: "der" });
+  return { privateKey, publicKey, publicKeyHex: der.subarray(der.length - 32).toString("hex") };
+}
+
 /** Deterministic JSON: keys sorted recursively, so the signed bytes are stable
  *  across producers (the same canonicalization the audit chain uses). */
 export function canonicalize(value: unknown): string {
@@ -60,11 +90,9 @@ export function sha256Hex(input: string): string {
 
 /** Sign a disclosure with an agent key, returning the signed envelope. */
 export function signDisclosure(disclosure: AgentDisclosure, key: AgentKeyPair): SignedDisclosure {
-  const message = Buffer.from(canonicalize(disclosure), "utf8");
-  const value = edSign(null, message, key.privateKey).toString("hex");
   return {
     disclosure,
-    signature: { algorithm: "ed25519", publicKey: key.publicKeyHex, value },
+    signature: { algorithm: "ed25519", publicKey: key.publicKeyHex, value: signMessage(canonicalize(disclosure), key) },
   };
 }
 
@@ -80,14 +108,9 @@ export function verifyDisclosureSignature(signed: SignedDisclosure): SignatureCh
   if (signed.disclosure.agentId !== signed.signature.publicKey) {
     return { ok: false, reason: "agentId does not match the signing public key" };
   }
-  try {
-    const pub = publicKeyFromHex(signed.signature.publicKey);
-    const message = Buffer.from(canonicalize(signed.disclosure), "utf8");
-    const ok = edVerify(null, message, pub, Buffer.from(signed.signature.value, "hex"));
-    return ok ? { ok: true } : { ok: false, reason: "signature mismatch" };
-  } catch (e) {
-    return { ok: false, reason: e instanceof Error ? e.message : String(e) };
-  }
+  return verifyMessage(canonicalize(signed.disclosure), signed.signature.publicKey, signed.signature.value)
+    ? { ok: true }
+    : { ok: false, reason: "signature mismatch" };
 }
 
 /** Freshness: a disclosure is valid only within [issuedAt, validUntil]. ISO-8601

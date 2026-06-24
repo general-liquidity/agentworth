@@ -42,9 +42,25 @@ export {
   isFresh,
   canonicalize,
   sha256Hex,
+  signMessage,
+  verifyMessage,
+  exportAgentKey,
+  agentKeyFromPrivateHex,
   type AgentKeyPair,
   type SignatureCheck,
 } from "./attestation.ts";
+
+// Verification handshake (vendor-neutral) — live challenge-response
+export {
+  createChallenge,
+  respondToChallenge,
+  verifyChallengeResponse,
+  randomNonce,
+  type Challenge,
+  type ChallengeResponse,
+  type HandshakePolicy,
+  type HandshakeCheck,
+} from "./handshake.ts";
 
 // Counterparty verification (vendor-neutral)
 export {
@@ -60,5 +76,6 @@ export {
 export {
   buildAgentDisclosure,
   buildAndSignDisclosure,
+  loadOrCreateAgentKey,
   type BuildDisclosureDeps,
 } from "./builders.ts";
