@@ -36,3 +36,8 @@ hardening and integration surfaces.
   The `pg` client is injected (operator brings `pg.Pool`); single-writer for now
   (multi-instance cache invalidation via LISTEN/NOTIFY is a documented follow-on).
 - Packaging: `LICENSE` (MIT), this changelog, and a publishable package manifest.
+- **Publishable build** — `npm run build` compiles `src` → `dist` (ESM + `.d.ts`),
+  rewriting `.ts` import specifiers to `.js` (TS `rewriteRelativeImportExtensions`).
+  `bin`/`main`/`types`/`exports` point at `dist`, `prepublishOnly` runs the build,
+  and the package is no longer `private` — ready for `npm publish` once the name is
+  claimed. CI now builds the dist on every run.

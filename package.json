@@ -1,7 +1,6 @@
 {
   "name": "opensolvency",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "The operator-aligned governance plane for agentic spend. The 'secure enclave' of the money OS: a payment is structurally unable to execute outside an operator-granted mandate, and every decision is signed and replayable.",
   "license": "MIT",
@@ -19,18 +18,25 @@
     "node": ">=22.18"
   },
   "bin": {
-    "opensolvency": "src/cli/index.ts"
+    "opensolvency": "dist/cli/index.js"
   },
+  "main": "dist/sdk/index.js",
+  "types": "dist/sdk/index.d.ts",
   "exports": {
-    ".": "./src/sdk/index.ts"
+    ".": {
+      "types": "./dist/sdk/index.d.ts",
+      "import": "./dist/sdk/index.js"
+    }
   },
   "files": [
-    "src",
+    "dist",
     "LICENSE",
     "CHANGELOG.md",
     "README.md"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build",
     "test": "node --import tsx --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "demo": "node --import tsx scripts/demo.ts",

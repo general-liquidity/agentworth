@@ -28,6 +28,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # Emit the publishable dist (tsc → dist, .ts specifiers rewritten to .js).
+      # Verifies the package actually compiles for distribution.
+      - name: Build
+        run: npm run build
+
       # The full suite — gate, audit, executor, store (node:sqlite), rails,
       # finance, agents, ingress, identity, reputation, earning, MCP.
       - name: Test
