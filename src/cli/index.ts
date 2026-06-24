@@ -33,6 +33,11 @@ import {
   type AiModelConfig,
 } from "../agent/aiSdkModel.ts";
 import { runFinanceAgent } from "../agent/financeAgent.ts";
+import { createIngressServer } from "../ingress/server.ts";
+import { getIngressToken, setIngressToken } from "../ingress/auth.ts";
+import { runAcpStdio } from "../acp/entry.ts";
+import { createOpenSolvencyMcpServer, startMcpStdio } from "../mcp/server.ts";
+import { VERSION } from "../version.ts";
 import { renderTimeline } from "../obs/replay.ts";
 import { replayAudit } from "../obs/replaySim.ts";
 import { buildProfile } from "../finance/onboarding.ts";
@@ -377,11 +382,85 @@ async function main(): Promise<void> {
     return;
   }
 
+  // ── ingress token (operator-only; gates the HTTP transport) ─────────────────
+  if (command === "token" && sub === "set") {
+    if (!rest[0]) {
+      console.log("usage: opensolvency token set <token>");
+      return;
+    }
+    setIngressToken(store.setMeta.bind(store), rest[0]);
+    console.log("ingress token set — HTTP requests now require a bearer token.");
+    return;
+  }
+
+  // ── serve: the HTTP ingress (same executor/gate as the CLI) ─────────────────
+  if (command === "serve") {
+    const f = parseFlags([sub, ...rest].filter(Boolean));
+    const port = Number(f.port ?? "8787");
+    const newId = () => `pi_${randomUUID().slice(0, 8)}`;
+    const server = createIngressServer({
+      executor,
+      clock,
+      newId,
+      ingressToken: () => getIngressToken(store.getMeta.bind(store)),
+      version: VERSION,
+    });
+    const tokenSet = getIngressToken(store.getMeta.bind(store)) !== undefined;
+    server.listen(port, "127.0.0.1", () => {
+      console.log(
+        `ingress on http://127.0.0.1:${port} (OpenAPI at /openapi.json) — ` +
+          `auth ${tokenSet ? "ON (bearer token required)" : "OFF (loopback dev; set one with `token set`)"}`,
+      );
+    });
+    return;
+  }
+
+  // ── mcp: the MCP server over stdio (Claude Code / Cursor) ────────────────────
+  if (command === "mcp") {
+    const newId = () => `pi_${randomUUID().slice(0, 8)}`;
+    const server = createOpenSolvencyMcpServer({ executor, store, audit, clock, newId });
+    await startMcpStdio(server);
+    return;
+  }
+
+  // ── acp: the Agent Client Protocol over stdio (editors/IDEs) ─────────────────
+  if (command === "acp") {
+    const profile = getProfile(store);
+    const cfg = realModelConfig();
+    if (!profile) {
+      console.error("no profile — run `profile set` first.");
+      process.exitCode = 1;
+      return;
+    }
+    if (!cfg) {
+      console.error("the ACP agent needs a model key (OPENSOLVENCY_MODEL_API_KEY).");
+      process.exitCode = 1;
+      return;
+    }
+    const newId = () => `pi_${randomUUID().slice(0, 8)}`;
+    runAcpStdio({
+      newSessionId: () => `sess_${randomUUID().slice(0, 8)}`,
+      runPrompt: async (_sessionId, text) => {
+        const r = await runFinanceAgent(text, {
+          model: createAiModel(cfg),
+          executor,
+          store,
+          profile,
+          clock,
+          newId,
+        });
+        return r.text ?? "";
+      },
+    });
+    return;
+  }
+
   console.log(
     "usage: opensolvency <mandate grant|mandate list|mandate revoke|pay|" +
       "agent|finance|profile set|profile show|goal set|pending|approve [--ack]|" +
       "kill|unkill|reset-breaker|status|audit verify|audit log|audit replay|" +
-      "audit replay-sim [--mandates file.json]>",
+      "audit replay-sim [--mandates file.json]|serve [--port N]|token set <token>|" +
+      "mcp|acp>",
   );
 }
 

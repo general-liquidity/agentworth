@@ -11,6 +11,8 @@
 
 import { createServer, type Server } from "node:http";
 import { PaymentIntentDraftSchema } from "../agent/schema.ts";
+import { authorizeIngress } from "./auth.ts";
+import { buildOpenApiDocument } from "./openapi.ts";
 import type { Executor } from "../core/executor.ts";
 import type { PaymentIntent } from "../core/types.ts";
 
@@ -18,6 +20,11 @@ export interface IngressDeps {
   executor: Executor;
   clock: () => string;
   newId: () => string;
+  /** Configured bearer token; when set, non-/health requests must present it.
+   * When undefined the surface is open (loopback dev posture). */
+  ingressToken?: () => string | undefined;
+  /** Version stamped into the served OpenAPI document. */
+  version?: string;
 }
 
 export interface IngressResponse {
@@ -30,9 +37,18 @@ export async function handleIngress(
   path: string,
   rawBody: string,
   deps: IngressDeps,
+  authHeader?: string,
 ): Promise<IngressResponse> {
+  // Transport auth runs before anything but liveness. The gate still decides every
+  // payment; this only stops unauthenticated callers reaching the transport at all.
+  const auth = authorizeIngress(path, authHeader, deps.ingressToken?.());
+  if (!auth.ok) return { status: auth.status ?? 401, body: auth.body };
+
   if (method === "GET" && path === "/health") {
     return { status: 200, body: { ok: true } };
+  }
+  if (method === "GET" && path === "/openapi.json") {
+    return { status: 200, body: buildOpenApiDocument(deps.version ?? "0.0.0") };
   }
   if (method === "GET" && path === "/status") {
     return {
@@ -89,7 +105,8 @@ export function createIngressServer(
     });
     req.on("end", () => {
       const path = new URL(req.url ?? "/", "http://localhost").pathname;
-      void handleIngress(req.method ?? "GET", path, body, deps).then((out) => {
+      const authHeader = req.headers.authorization;
+      void handleIngress(req.method ?? "GET", path, body, deps, authHeader).then((out) => {
         res.writeHead(out.status, { "content-type": "application/json" });
         res.end(JSON.stringify(out.body));
       });

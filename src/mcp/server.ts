@@ -11,6 +11,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { RAIL_KINDS } from "../agent/schema.ts";
+import { VERSION } from "../version.ts";
 import type { Executor } from "../core/executor.ts";
 import type { Store } from "../core/store.ts";
 import type { AuditLog } from "../core/audit.ts";
@@ -27,7 +28,7 @@ export interface McpDeps {
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 
 export function createOpenSolvencyMcpServer(deps: McpDeps): McpServer {
-  const server = new McpServer({ name: "opensolvency", version: "0.0.0" });
+  const server = new McpServer({ name: "opensolvency", version: VERSION });
 
   // PROPOSE (gated) — the only money-touching tool; the gate still governs.
   server.registerTool(

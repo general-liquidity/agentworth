@@ -22,6 +22,7 @@ import { convertMinor, type FxRateSource } from "./fx.ts";
 import type { ReputationSource } from "./reputation.ts";
 import { RAIL_REVERSIBILITY } from "./types.ts";
 import { noopTracer, type Tracer } from "../obs/tracer.ts";
+import { noopNotifier, approvalNotification, type Notifier } from "../notify/notifier.ts";
 import type { Store, IntentStatus } from "./store.ts";
 import type { RailRegistry } from "../rails/registry.ts";
 import type {
@@ -61,6 +62,9 @@ export interface ExecutorDeps {
   challengeThresholdMinor?: number;
   /** Optional observability sink (OTel, etc.); defaults to no-op. */
   tracer?: Tracer;
+  /** Optional out-of-band operator notifier, pinged when a payment needs
+   * confirmation. Best-effort — never blocks or alters a gate decision. */
+  notifier?: Notifier;
   /** Optional FX rates; enables cross-currency payments against a mandate. */
   fxRates?: FxRateSource;
   /** Optional network reputation source; feeds the gate's risk. */
@@ -82,6 +86,7 @@ export function createExecutor(deps: ExecutorDeps) {
   const breakerThreshold = deps.circuitBreakerThreshold ?? 4;
   const challengeThreshold = deps.challengeThresholdMinor ?? 100_000;
   const tracer = deps.tracer ?? noopTracer;
+  const notifier = deps.notifier ?? noopNotifier;
 
   function context(
     now: string,
@@ -258,6 +263,10 @@ export function createExecutor(deps: ExecutorDeps) {
         settledAt: null,
         receiptId: null,
       });
+      // Best-effort out-of-band ping so the operator doesn't have to poll. Fired
+      // and not awaited: a slow/failing notifier must never delay or change the
+      // result. Its own errors are swallowed inside notify().
+      void notifier.notify(approvalNotification(intent, decision, now));
       return { intentId: intent.id, status: "pending", decision, receipt: null, verified: null };
     }
 

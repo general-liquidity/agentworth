@@ -1,17 +1,43 @@
 {
   "name": "opensolvency",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "OpenSolvency (placeholder) — the operator-aligned governance plane for agentic spend. The 'secure enclave' of the money OS: a payment is structurally unable to execute outside an operator-granted mandate, and every decision is signed and replayable.",
+  "description": "The operator-aligned governance plane for agentic spend. The 'secure enclave' of the money OS: a payment is structurally unable to execute outside an operator-granted mandate, and every decision is signed and replayable.",
+  "license": "MIT",
+  "author": "General Liquidity",
+  "keywords": [
+    "agentic-payments",
+    "governance",
+    "ai-agents",
+    "mcp",
+    "acp",
+    "x402",
+    "personal-finance"
+  ],
   "engines": {
     "node": ">=22.18"
   },
+  "bin": {
+    "opensolvency": "src/cli/index.ts"
+  },
+  "exports": {
+    ".": "./src/sdk/index.ts"
+  },
+  "files": [
+    "src",
+    "LICENSE",
+    "CHANGELOG.md",
+    "README.md"
+  ],
   "scripts": {
     "test": "node --import tsx --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "demo": "node --import tsx scripts/demo.ts",
-    "cli": "node --import tsx src/cli/index.ts"
+    "cli": "node --import tsx src/cli/index.ts",
+    "acp": "node --import tsx src/cli/index.ts acp",
+    "mcp": "node --import tsx src/cli/index.ts mcp",
+    "serve": "node --import tsx src/cli/index.ts serve"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
