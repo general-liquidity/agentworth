@@ -24,6 +24,7 @@ jobs:
     name: npm (opensolvency + opensolvency-mcp)
     if: ${{ vars.PUBLISH_NPM == 'true' }}
     runs-on: ubuntu-latest
+    environment: npm
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -67,6 +68,7 @@ jobs:
     name: crates.io (opensolvency)
     if: ${{ vars.PUBLISH_CRATES == 'true' }}
     runs-on: ubuntu-latest
+    environment: crates
     steps:
       - uses: actions/checkout@v4
       # Exchanges the GitHub OIDC identity for a short-lived crates.io token.
