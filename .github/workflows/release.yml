@@ -1,16 +1,14 @@
 name: Release
 
-# Automated, token-based publishing for every package in the repo, so a release
-# never needs a manual `npm publish` + interactive 2FA again.
+# Tokenless publishing via OIDC "Trusted Publishing". There are NO secrets to
+# store or rotate: each registry trusts THIS workflow directly, and GitHub mints a
+# short-lived identity per run. You configure the trusted publisher once on each
+# registry's website (see RELEASING.md), then publishing is just a tag.
 #
-# SAFE BY DEFAULT: each job is gated on a repository VARIABLE (Settings → Variables),
-# so with nothing configured this workflow publishes NOTHING. Opt each registry in:
-#   - npm:      set var PUBLISH_NPM=true     + secret NPM_TOKEN     (npm Automation token)
-#   - PyPI:     set var PUBLISH_PYPI=true    + secret PYPI_API_TOKEN
-#   - crates:   set var PUBLISH_CRATES=true  + secret CARGO_REGISTRY_TOKEN
-# Then push a tag (e.g. `v0.1.1`) or run this workflow manually.
-#
-# Versions are read from each package's own manifest — bump them, tag, done.
+# SAFE BY DEFAULT: each job is gated on a repository VARIABLE, so with nothing
+# configured this workflow publishes NOTHING. Opt a registry in by setting the var:
+#   PUBLISH_NPM=true · PUBLISH_PYPI=true · PUBLISH_CRATES=true
+# Then push a tag (e.g. `v0.1.1`) or run the workflow manually.
 
 on:
   push:
@@ -19,7 +17,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm provenance + (optional) PyPI trusted publishing
+  id-token: write # the OIDC identity used for trusted publishing (all three registries)
 
 jobs:
   npm:
@@ -33,18 +31,14 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
           cache: npm
+      # npm trusted publishing (OIDC) needs npm >= 11.5; provenance is automatic.
+      - run: npm install -g npm@latest
       - run: npm ci
-      # prepublishOnly builds dist; publishConfig.access=public; provenance attests
-      # the build came from this repo+commit (supply-chain signal, on brand).
       - name: Publish @general-liquidity/opensolvency
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
       - name: Publish @general-liquidity/opensolvency-mcp
         working-directory: opensolvency-mcp
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
 
   pypi:
     name: PyPI (opensolvency)
@@ -60,11 +54,11 @@ jobs:
         run: |
           python -m pip install --upgrade build
           python -m build
+      # No password: the action authenticates to PyPI via OIDC (trusted publisher).
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: clients/python/dist
-          password: ${{ secrets.PYPI_API_TOKEN }}
 
   crates:
     name: crates.io (opensolvency)
@@ -72,11 +66,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Exchanges the GitHub OIDC identity for a short-lived crates.io token.
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
       - name: Build + test before publishing
         working-directory: clients/rust
         run: cargo test --quiet
       - name: Publish to crates.io
         working-directory: clients/rust
-        run: cargo publish --token "${CARGO_REGISTRY_TOKEN}"
+        run: cargo publish
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}

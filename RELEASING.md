@@ -1,21 +1,24 @@
 # Releasing
 
-Every package in this repo publishes from CI via [`.github/workflows/release.yml`](.github/workflows/release.yml).
-No manual `npm publish` + interactive 2FA: tokens do the auth, and each registry is
-opt-in so nothing publishes by accident.
+Every package in this repo publishes from CI via [`.github/workflows/release.yml`](.github/workflows/release.yml)
+using **OIDC Trusted Publishing** — there are **no tokens to store or rotate**. Each
+registry trusts this workflow directly; GitHub mints a short-lived identity per run.
 
-## One-time setup (per registry you want automated)
+## One-time setup (per registry, on the registry's own website)
 
-In **Settings → Secrets and variables → Actions**:
+You configure a *trusted publisher* once. Nothing is stored in GitHub except an
+opt-in variable. For all three, the publisher is: **GitHub** owner `general-liquidity`,
+repo `opensolvency`, workflow file `release.yml`.
 
-| Registry | Set variable | Add secret |
+| Registry | Where | Notes |
 |---|---|---|
-| npm (`@general-liquidity/opensolvency`, `…-mcp`) | `PUBLISH_NPM=true` | `NPM_TOKEN` — an npm **Automation** token (bypasses 2FA) |
-| PyPI (`opensolvency`) | `PUBLISH_PYPI=true` | `PYPI_API_TOKEN` (or configure PyPI trusted publishing) |
-| crates.io (`opensolvency`) | `PUBLISH_CRATES=true` | `CARGO_REGISTRY_TOKEN` |
+| **PyPI** | Account → Publishing → *Add a pending publisher* | Fully tokenless, **including the first publish** (pending publishers cover not-yet-existing projects). |
+| **npm** | each package page → *Settings → Trusted Publisher* | The `opensolvency` + `…-mcp` packages already exist, so configure them directly. Needs npm ≥ 11.5 (the workflow upgrades it). Provenance is automatic. |
+| **crates.io** | crate → *Settings → Trusted Publishing* | A crate must exist before a trusted publisher can be added. The `opensolvency` crate is new, so do **one** initial `cargo publish` with a token to claim the name, then add the trusted publisher and never use a token again. |
 
-With a variable unset, that job is skipped — so the workflow is safe to land before
-any token exists.
+Then, in **Settings → Variables → Actions**, set the opt-in flag(s):
+`PUBLISH_NPM=true`, `PUBLISH_PYPI=true`, `PUBLISH_CRATES=true`. With a variable unset
+that job is skipped, so the workflow is safe to land before anything is configured.
 
 ## Cutting a release
 
@@ -30,8 +33,8 @@ any token exists.
    The tag triggers `release.yml`; each enabled registry publishes. (Or run the
    workflow manually from the Actions tab via *workflow_dispatch*.)
 
-npm publishes with `--provenance`, so each release carries a signed attestation that
-it was built from this repo + commit.
+With OIDC trusted publishing, npm attaches **provenance** automatically, so each
+release carries a signed attestation that it was built from this repo + commit.
 
 ## Go (no registry — git is the registry)
 
