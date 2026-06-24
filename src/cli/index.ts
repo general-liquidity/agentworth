@@ -102,6 +102,35 @@ async function main(): Promise<void> {
     clock,
   });
 
+  // ── init: guided first-run setup ─────────────────────────────────────────────
+  if (command === "init") {
+    const hasMandates = store.listMandates().length > 0;
+    const hasProfile = getProfile(store) !== undefined;
+    const tokenSet = getIngressToken(store.getMeta.bind(store)) !== undefined;
+    console.log("OpenSolvency — first-run setup\n");
+    if (!hasMandates) {
+      const m: Mandate = {
+        id: `m_${randomUUID().slice(0, 8)}`, label: "starter",
+        scope: { kind: "class", value: "misc" }, currency: "GBP", allowedRails: ["card"],
+        perTxCap: 50_00, perPeriodCap: 200_00, period: "week",
+        grantedAt: clock(), expiresAt: new Date(Date.now() + 30 * 86_400_000).toISOString(), status: "active",
+      };
+      store.insertMandate(m);
+      console.log(`✓ granted a small starter mandate (${m.id}): misc · GBP · card · per-tx £0.50 · per-week £2.00`);
+    } else {
+      console.log(`✓ ${store.listMandates().length} mandate(s) already configured`);
+    }
+    console.log(hasProfile ? "✓ a finance profile is set" : "• no finance profile yet — `profile set …` (for the advisory agent)");
+    console.log(tokenSet ? "✓ an ingress token is set" : "• no ingress token — `token set <token>` before exposing the HTTP ingress");
+    console.log("\nNext steps:");
+    console.log("  opensolvency mandate grant --label groceries --class groceries --currency GBP \\");
+    console.log("      --rails card --per-tx 50000 --per-period 100000 --period week --expires-days 30");
+    console.log("  opensolvency pay --payee tesco --class groceries --amount 8000 --rationale 'weekly shop'");
+    console.log("  opensolvency serve            # the HTTP ingress (set a token first)");
+    console.log("  npx -y @general-liquidity/opensolvency-mcp   # the MCP server for your editor");
+    return;
+  }
+
   if (command === "mandate" && sub === "grant") {
     const f = parseFlags(rest);
     const scope: PayeeScope = f.payees
@@ -533,7 +562,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    "usage: opensolvency <mandate grant|mandate list|mandate revoke|pay|" +
+    "usage: opensolvency <init|mandate grant|mandate list|mandate revoke|pay|" +
       "agent|finance|profile set|profile show|goal set|pending|approve [--ack]|" +
       "kill|unkill|reset-breaker|status|audit verify|audit log|audit replay|" +
       "audit replay-sim [--mandates file.json]|audit export|audit verify-export <file>|" +
