@@ -14,8 +14,15 @@ import { PaymentIntentDraftSchema } from "../agent/schema.ts";
 import { authorizeIngress } from "./auth.ts";
 import { buildOpenApiDocument } from "./openapi.ts";
 import { replayIfSeen, rememberKey } from "./idempotency.ts";
-import { buildAndSignDisclosure, loadOrCreateAgentKey, respondToChallenge } from "../disclosure/index.ts";
-import type { Challenge } from "../disclosure/index.ts";
+import {
+  buildAndSignDisclosure,
+  loadOrCreateAgentKey,
+  respondToChallenge,
+  parseSignedDisclosure,
+  evaluateDisclosure,
+  verifyTiered,
+} from "../disclosure/index.ts";
+import type { Challenge, VerificationPolicy, VerificationCache } from "../disclosure/index.ts";
 import type { RateLimiter } from "./rateLimit.ts";
 import type { Executor } from "../core/executor.ts";
 import type { Store } from "../core/store.ts";
@@ -35,6 +42,11 @@ export interface DisclosureIngressConfig {
     attestation?: { scheme: "AIP" | "VisaTAP" | "ERC8004" | "none"; level: "none" | "signed" | "registry_attested"; evidence?: string };
   };
   systemPrompt?: string;
+  /** the policy this node applies when offering verifier-as-a-service (POST
+   *  /verify-disclosure). `now` is filled from the server clock per request. */
+  verifierPolicy?: Omit<VerificationPolicy, "now">;
+  /** optional validity-window cache for the verifier-as-a-service fast path */
+  verificationCache?: VerificationCache;
 }
 
 /** Default cap on a request body — a payment intent is tiny; reject anything large. */
@@ -128,6 +140,34 @@ export async function handleIngress(
       return { status: 200, body: response };
     }
   }
+
+  // Verifier-as-a-service: a counterparty POSTs a signed disclosure; this node
+  // evaluates it against its own policy and returns a verdict. Makes verification
+  // cheap for heterogeneous callers (the language clients) that don't implement
+  // ed25519 themselves - the economic enabler. Tiered + cached when configured.
+  if (deps.disclosure && method === "POST" && path === "/verify-disclosure") {
+    let signed: ReturnType<typeof parseSignedDisclosure>;
+    try {
+      signed = parseSignedDisclosure(JSON.parse(rawBody));
+    } catch (e) {
+      return { status: 400, body: { error: "invalid disclosure", detail: e instanceof Error ? e.message : String(e) } };
+    }
+    const policy: VerificationPolicy = { ...(deps.disclosure.verifierPolicy ?? {}), now: deps.clock() };
+    const tiered = deps.disclosure.verificationCache
+      ? verifyTiered(deps.disclosure.verificationCache, signed, policy)
+      : { verdict: evaluateDisclosure(signed, policy), tier: "fresh" as const };
+    return {
+      status: 200,
+      body: {
+        decision: tiered.verdict.decision,
+        tier: tiered.tier,
+        checks: tiered.verdict.checks,
+        reasons: tiered.verdict.reasons,
+        cost: tiered.verdict.cost,
+      },
+    };
+  }
+
   if (method === "GET" && path === "/status") {
     return {
       status: 200,

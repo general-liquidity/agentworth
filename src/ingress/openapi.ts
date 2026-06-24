@@ -84,6 +84,19 @@ export function buildOpenApiDocument(version: string): Record<string, unknown> {
           responses: { "200": { description: "a signed ChallengeResponse bound to the current audit head" }, "400": { description: "invalid challenge" } },
         },
       },
+      "/verify-disclosure": {
+        post: {
+          summary: "Verifiable Agency: verifier-as-a-service - evaluate a posted disclosure against this node's policy",
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { type: "object", description: "a SignedDisclosure envelope" } } },
+          },
+          responses: {
+            "200": { description: "a verdict { decision, tier, checks, reasons, cost }" },
+            "400": { description: "malformed disclosure envelope" },
+          },
+        },
+      },
       "/status": {
         get: {
           summary: "Kill-switch / circuit-breaker state",
