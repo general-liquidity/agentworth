@@ -65,6 +65,10 @@ export interface ExecutorDeps {
   /** Optional out-of-band operator notifier, pinged when a payment needs
    * confirmation. Best-effort — never blocks or alters a gate decision. */
   notifier?: Notifier;
+  /** Optional durability barrier, awaited after each payment operation so the
+   * operation's writes are durable before it resolves. Async stores (Postgres)
+   * wire this to their `flush`; synchronous stores (memory/sqlite) omit it. */
+  commit?: () => Promise<void>;
   /** Optional FX rates; enables cross-currency payments against a mandate. */
   fxRates?: FxRateSource;
   /** Optional network reputation source; feeds the gate's risk. */
@@ -87,6 +91,18 @@ export function createExecutor(deps: ExecutorDeps) {
   const challengeThreshold = deps.challengeThresholdMinor ?? 100_000;
   const tracer = deps.tracer ?? noopTracer;
   const notifier = deps.notifier ?? noopNotifier;
+  const commit = deps.commit ?? (() => Promise.resolve());
+
+  // Run a money-moving operation, then make its writes durable before resolving.
+  // `finally` guarantees the barrier runs on every path (settled/pending/blocked/
+  // throw); a synchronous store's commit is a no-op, so this is free for them.
+  async function withCommit<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } finally {
+      await commit();
+    }
+  }
 
   function context(
     now: string,
@@ -453,9 +469,12 @@ export function createExecutor(deps: ExecutorDeps) {
   }
 
   return {
-    execute,
-    approve,
-    refund,
+    execute: (intent: PaymentIntent, opts?: { attestation?: Attestation }) =>
+      withCommit(() => execute(intent, opts)),
+    approve: (intentId: string, operatorRationale: string, opts?: { acknowledged?: boolean }) =>
+      withCommit(() => approve(intentId, operatorRationale, opts)),
+    refund: (intentId: string, opts?: { amountMinor?: number; reason?: string }) =>
+      withCommit(() => refund(intentId, opts)),
     amendMandate,
     extendMandate,
     // Operator controls — NOT exposed to the agent as tools.

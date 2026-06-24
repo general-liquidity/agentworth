@@ -27,9 +27,12 @@ hardening and integration surfaces.
 - **OTLP tracer** — a real `Tracer` that ships executor lifecycle events to an
   OpenTelemetry collector over OTLP/HTTP (JSON), with no hard `@opentelemetry/*`
   dependency.
+- **Postgres store** (`createPostgresStore`, exported from the SDK) — durable,
+  server-grade persistence. Postgres is the source of truth; an in-process mirror
+  serves the synchronous `Store` reads (so the gate stays pure and nothing else
+  changes), and writes are persisted through a serialized queue with a `flush()`
+  barrier the executor awaits (the new `commit` dep) so a payment's writes are
+  durable before `execute()`/`approve()` resolves — no write-behind data-loss risk.
+  The `pg` client is injected (operator brings `pg.Pool`); single-writer for now
+  (multi-instance cache invalidation via LISTEN/NOTIFY is a documented follow-on).
 - Packaging: `LICENSE` (MIT), this changelog, and a publishable package manifest.
-
-### Notes
-- A Postgres-backed store is deferred: the `Store`/executor path is synchronous by
-  design (it keeps the gate pure), so a Postgres backend requires an async-store
-  refactor and is tracked as its own task.

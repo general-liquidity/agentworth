@@ -89,6 +89,9 @@ export interface OpenSolvencyOptions {
   circuitBreakerThreshold?: number;
   /** Pending intents at/above this amount require challenge-response on approve. */
   challengeThresholdMinor?: number;
+  /** Durability barrier awaited after each payment op (async stores wire their
+   * `flush` here). Synchronous stores (memory/sqlite) leave it unset. */
+  commit?: () => Promise<void>;
 }
 
 const DEFAULT_EXPIRY_DAYS = 30;
@@ -132,6 +135,7 @@ export class OpenSolvency {
       clock: this.#clock,
       circuitBreakerThreshold: options.circuitBreakerThreshold,
       challengeThresholdMinor: options.challengeThresholdMinor,
+      commit: options.commit,
     });
   }
 
@@ -300,3 +304,5 @@ export type { AuditEntry, AuditEventType, VerifyResult } from "../core/audit.ts"
 export type { ExecuteResult, RefundResult } from "../core/executor.ts";
 export type { Store, StoredIntent, IntentStatus } from "../core/store.ts";
 export { createMemoryStore } from "../store/memoryStore.ts";
+export { createPostgresStore } from "../store/postgresStore.ts";
+export type { PgClient, PostgresStoreHandle } from "../store/postgresStore.ts";
