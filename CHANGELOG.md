@@ -12,6 +12,11 @@ were built across the preceding milestones; this release adds the production
 hardening and integration surfaces.
 
 ### Added
+- **Language clients** (`clients/`) — dependency-light REST clients over the HTTP
+  ingress for non-TypeScript hosts: **Python** (stdlib only) and **Go** (stdlib only),
+  each with `pay` / `status` / `ready`, bearer-token + idempotency-key support, and a
+  `blocked` outcome treated as a normal result. They add no authority — every payment
+  still runs through the gate. (The TS SDK remains the in-process full-feature surface.)
 - **Biome lint quality gate** — `biome.json` tuned to the project's style; `npm run
   lint` runs in CI as a blocking step (fixed the handful it flagged). `format` /
   `format:check` scripts are available but formatting is not mass-applied (avoiding
