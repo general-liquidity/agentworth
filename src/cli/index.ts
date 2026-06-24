@@ -39,6 +39,7 @@ import { createRateLimiter } from "../ingress/rateLimit.ts";
 import { runAcpStdio } from "../acp/entry.ts";
 import { createOpenSolvencyMcpServer, startMcpStdio } from "../mcp/server.ts";
 import { VERSION } from "../version.ts";
+import { runEvalSuite } from "../evals/index.ts";
 import { renderTimeline } from "../obs/replay.ts";
 import { replayAudit } from "../obs/replaySim.ts";
 import { buildProfile } from "../finance/onboarding.ts";
@@ -383,6 +384,20 @@ async function main(): Promise<void> {
     return;
   }
 
+  // ── evals: run the generated scenario suite (gate decisions + process checks) ─
+  if (command === "evals") {
+    const suite = await runEvalSuite();
+    for (const r of suite.results) {
+      console.log(
+        `${r.passed ? "✓" : "✗"} ${r.scenarioId.padEnd(36)} [${r.derivedFrom}] ` +
+          (r.passed ? r.actualStatus : `expected ${r.expectedStatus}, got ${r.actualStatus}`),
+      );
+    }
+    console.log(`${suite.passed}/${suite.total} scenarios passed.`);
+    if (!suite.ok) process.exitCode = 1;
+    return;
+  }
+
   // ── ingress token (operator-only; gates the HTTP transport) ─────────────────
   if (command === "token" && sub === "set") {
     if (!rest[0]) {
@@ -463,7 +478,7 @@ async function main(): Promise<void> {
       "agent|finance|profile set|profile show|goal set|pending|approve [--ack]|" +
       "kill|unkill|reset-breaker|status|audit verify|audit log|audit replay|" +
       "audit replay-sim [--mandates file.json]|serve [--port N]|token set <token>|" +
-      "mcp|acp>",
+      "mcp|acp|evals>",
   );
 }
 

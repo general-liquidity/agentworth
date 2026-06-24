@@ -57,3 +57,23 @@ jobs:
       # that the gate, executor, and rails wire together end to end.
       - name: Demo
         run: npm run demo
+
+  eval-gate:
+    name: eval gate (gate decisions + process checks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Deterministic: runs every generated scenario live and fails on any wrong
+      # gate outcome or block-severity process violation. No model, no network.
+      - name: Eval gate
+        run: npm run eval-gate

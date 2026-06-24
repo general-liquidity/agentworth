@@ -12,6 +12,16 @@ were built across the preceding milestones; this release adds the production
 hardening and integration surfaces.
 
 ### Added
+- **Eval harness** (`src/evals/`) — the payments-domain analogue of Gordon's RULER
+  harness. **Generated scenarios** (from the gate-acceptance spec + the deny-list,
+  each `derivedFrom`-stamped) run **live** through a deterministic executor +
+  `FakeRail`; **process checks** (`checkTrajectory`) replay the signed audit trace
+  and fail on the catastrophic failures — settling a gate-blocked intent, settling
+  with no gate decision, settling while halted; **pass^k** (`computePassK`,
+  `mode "all"` for safety) demands every run be safe; an opt-in **LLM-judge** leg
+  (`judge.ts`, with a deterministic stub) scores advisory quality. A deterministic
+  **CI gate** (`npm run eval-gate`, a third CI job) blocks any regression, and
+  `opensolvency evals` runs it locally.
 - **Payments / HTTP hardening** — **idempotency keys** (`Idempotency-Key` header:
   a retried `POST /payment-intent` replays the first result and the gate runs once,
   so a network retry can't settle twice), a per-IP **rate limiter** (fixed-window,

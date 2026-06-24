@@ -37,6 +37,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "npm run build",
+    "eval-gate": "node --import tsx scripts/eval-gate.ts",
     "test": "node --import tsx --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "demo": "node --import tsx scripts/demo.ts",
