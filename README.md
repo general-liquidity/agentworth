@@ -75,7 +75,7 @@ One gate, reached from everywhere agents live — the same executor, mandates, r
 |:--|:--|:--|
 | <img height="14" align="top" src="https://cdn.simpleicons.org/typescript/3178C6" />&nbsp; **TypeScript SDK** | `import { OpenSolvency }` | The programmatic façade — grant mandates, `pay()` through the gate, approve, verify the audit chain. |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/gnubash/4EAA25" />&nbsp; **CLI** | `opensolvency …` | `mandate` / `pay` / `agent` / `finance` / `approve` / `kill` / `audit` / `serve`. |
-| <img height="14" align="top" src="https://cdn.simpleicons.org/anthropic/D97757" />&nbsp; **MCP** | `opensolvency mcp` | An [MCP](https://modelcontextprotocol.io) server — Claude Code / Cursor call the gated `pay` + read-only tools. |
+| <img height="14" align="top" src="https://cdn.simpleicons.org/modelcontextprotocol" />&nbsp; **MCP** | `opensolvency mcp` | An [MCP](https://modelcontextprotocol.io) server — Claude Code / Cursor call the gated `pay` + read-only tools. |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/zedindustries/084CCF" />&nbsp; **ACP** | `opensolvency acp` | An [Agent Client Protocol](https://agentclientprotocol.com) surface — editors/IDEs drive the agent in-editor. |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/openapiinitiative/6BA539" />&nbsp; **HTTP** | `opensolvency serve` | The ingress — same gate over HTTP, OpenAPI 3.1 at `/openapi.json`, bearer-token auth. |
 
@@ -178,10 +178,10 @@ Hermes-style serverless-hibernation (always-reachable, ~$0 idle) — **not** Aeo
 | <img height="14" align="top" src="https://cdn.simpleicons.org/typescript/3178C6" />&nbsp; [TypeScript](https://www.typescriptlang.org) | The whole system — strict, ESM, integer minor-units, `.ts` imports |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/nodedotjs/5FA04E" />&nbsp; [Node ≥ 22.18](https://nodejs.org) | Runtime; `node:sqlite` + `node:crypto`, no native build step |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/vercel/000000" />&nbsp; [Vercel AI SDK](https://sdk.vercel.ai) | The multi-step agent loop; the model's sole tool runs through the gate |
-| <img height="14" align="top" src="https://cdn.simpleicons.org/openai/412991" />&nbsp; OpenAI · <img height="14" align="top" src="https://cdn.simpleicons.org/anthropic/D97757" />&nbsp; Anthropic · <img height="14" align="top" src="https://cdn.simpleicons.org/google/4285F4" />&nbsp; Google | Model providers, swappable by config — add one with one `@ai-sdk/*` package |
+| <img height="14" width="14" align="top" src="https://registry.npmmirror.com/@lobehub/icons-static-svg/latest/files/icons/openai.svg" />&nbsp; OpenAI · <img height="14" align="top" src="https://cdn.simpleicons.org/anthropic/D97757" />&nbsp; Anthropic · <img height="14" align="top" src="https://cdn.simpleicons.org/googlegemini/8E75B2" />&nbsp; Gemini | Model providers, swappable by config — add one with one `@ai-sdk/*` package |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/sqlite/003B57" />&nbsp; SQLite · <img height="14" align="top" src="https://cdn.simpleicons.org/postgresql/4169E1" />&nbsp; Postgres | Durable stores behind the synchronous `Store` boundary |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/zod/3E67B1" />&nbsp; [Zod](https://zod.dev) | Schema validation at every boundary (intents, ingress, tools) |
-| <img height="14" align="top" src="https://cdn.simpleicons.org/anthropic/D97757" />&nbsp; [MCP](https://modelcontextprotocol.io) · <img height="14" align="top" src="https://cdn.simpleicons.org/zedindustries/084CCF" />&nbsp; ACP | Agent-facing transports into the gate |
+| <img height="14" align="top" src="https://cdn.simpleicons.org/modelcontextprotocol" />&nbsp; [MCP](https://modelcontextprotocol.io) · <img height="14" align="top" src="https://cdn.simpleicons.org/zedindustries/084CCF" />&nbsp; ACP | Agent-facing transports into the gate |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/opentelemetry/F5A800" />&nbsp; [OpenTelemetry](https://opentelemetry.io) | Operational tracing over OTLP/HTTP, no hard dependency |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/githubactions/2088FF" />&nbsp; GitHub Actions | CI: typecheck · full suite · end-to-end demo, on Node 22 |
 
