@@ -33,3 +33,32 @@ export {
   type DeploymentHistory,
   type RedTeamAttestation,
 } from "./schema.ts";
+
+// Attestation primitives (vendor-neutral)
+export {
+  generateAgentKeyPair,
+  signDisclosure,
+  verifyDisclosureSignature,
+  isFresh,
+  canonicalize,
+  sha256Hex,
+  type AgentKeyPair,
+  type SignatureCheck,
+} from "./attestation.ts";
+
+// Counterparty verification (vendor-neutral)
+export {
+  evaluateDisclosure,
+  verifyAndEvaluate,
+  type VerificationPolicy,
+  type DisclosureVerdict,
+  type Grade,
+  type AttestationLevel,
+} from "./verify.ts";
+
+// OpenSolvency field builders (the reference implementation — does NOT lift out)
+export {
+  buildAgentDisclosure,
+  buildAndSignDisclosure,
+  type BuildDisclosureDeps,
+} from "./builders.ts";

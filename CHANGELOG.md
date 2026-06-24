@@ -19,6 +19,18 @@ semantic versioning once it reaches 1.0.
   standalone `verifiable-agency` repo; the OpenSolvency field builders (next) populate
   it from the live gate / mandates / audit / SpendTrust. The reference implementation
   of the "pluggable behavioural-trust layer" ERC-8004 et al. defer.
+  - **Attestation** (`attestation.ts`): ed25519 sign/verify + deterministic
+    canonicalization + freshness + the agentId↔key binding (a disclosure must be
+    signed by the key it claims as its identity).
+  - **Verification** (`verify.ts`): a counterparty `VerificationPolicy` and
+    `evaluateDisclosure → {transact | refuse, reasons}` — enforced-constitution,
+    required hard-constraints, min red-team grade, non-custodial, attestation level,
+    deployment-history, and audit-anchor checks. Deterministic and cheap.
+  - **Builders** (`builders.ts`, OpenSolvency-specific): `buildAndSignDisclosure`
+    populates every field from the live deny-list, gate config, granted mandates,
+    signed audit-chain head, and a SpendTrust run — proven end-to-end (build → sign
+    → verify → policy → transact/refuse, with tamper / forged-identity / staleness /
+    grade-threshold all caught).
 
 ## [0.1.1] — 2026-06-24
 
