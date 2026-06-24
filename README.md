@@ -75,7 +75,7 @@ One gate, reached from everywhere agents live — the same executor, mandates, r
 |:--|:--|:--|
 | <img height="14" align="top" src="https://cdn.simpleicons.org/typescript/3178C6" />&nbsp; **TypeScript SDK** | `import { OpenSolvency }` | The programmatic façade — grant mandates, `pay()` through the gate, approve, verify the audit chain. |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/gnubash/4EAA25" />&nbsp; **CLI** | `opensolvency …` | `mandate` / `pay` / `agent` / `finance` / `approve` / `kill` / `audit` / `serve`. |
-| <img height="14" align="top" src="https://cdn.simpleicons.org/modelcontextprotocol" />&nbsp; **MCP** | `opensolvency mcp` | An [MCP](https://modelcontextprotocol.io) server — Claude Code / Cursor call the gated `pay` + read-only tools. |
+| <img height="14" align="top" src="https://cdn.simpleicons.org/modelcontextprotocol" />&nbsp; **MCP** | `npx -y @general-liquidity/opensolvency-mcp` | An [MCP](https://modelcontextprotocol.io) server — Claude Code / Cursor call the gated `pay` + read-only tools (or `opensolvency mcp` from the main package). |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/zedindustries/084CCF" />&nbsp; **ACP** | `opensolvency acp` | An [Agent Client Protocol](https://agentclientprotocol.com) surface — editors/IDEs drive the agent in-editor. |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/openapiinitiative/6BA539" />&nbsp; **HTTP** | `opensolvency serve` | The ingress — same gate over HTTP, OpenAPI 3.1 at `/openapi.json`, bearer-token auth. |
 

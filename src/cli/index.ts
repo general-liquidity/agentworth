@@ -37,7 +37,7 @@ import { createIngressServer } from "../ingress/server.ts";
 import { getIngressToken, setIngressToken, isLoopbackHost } from "../ingress/auth.ts";
 import { createRateLimiter } from "../ingress/rateLimit.ts";
 import { runAcpStdio } from "../acp/entry.ts";
-import { createOpenSolvencyMcpServer, startMcpStdio } from "../mcp/server.ts";
+import { startOpenSolvencyMcp } from "../mcp/run.ts";
 import { VERSION } from "../version.ts";
 import { runEvalSuite } from "../evals/index.ts";
 import { renderTimeline } from "../obs/replay.ts";
@@ -451,9 +451,8 @@ async function main(): Promise<void> {
 
   // ── mcp: the MCP server over stdio (Claude Code / Cursor) ────────────────────
   if (command === "mcp") {
-    const newId = () => `pi_${randomUUID().slice(0, 8)}`;
-    const server = createOpenSolvencyMcpServer({ executor, store, audit, clock, newId });
-    await startMcpStdio(server);
+    // Reuse the already-composed runtime (no second sqlite connection).
+    await startOpenSolvencyMcp({ store, executor, audit, clock });
     return;
   }
 

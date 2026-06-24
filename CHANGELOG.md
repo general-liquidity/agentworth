@@ -12,6 +12,13 @@ were built across the preceding milestones; this release adds the production
 hardening and integration surfaces.
 
 ### Added
+- **Standalone MCP package** — `@general-liquidity/opensolvency-mcp`, an npx-able
+  MCP server (`npx -y @general-liquidity/opensolvency-mcp`) so editors configure it
+  like any other MCP server. It delegates to the main package's new `./mcp` subpath
+  export (`startOpenSolvencyMcp`), which the bundled `opensolvency mcp` command now
+  shares — one gated surface, two entry points. The package is scoped
+  `@general-liquidity/opensolvency` (matching SharpeBench), publishable with
+  `publishConfig.access: public`.
 - **Real on-chain settlement path (testnet)** — `scripts/testnet-settle.ts` takes
   the system past the fail-safe stubs: a genuine ERC-20 stablecoin transfer (e.g.
   testnet USDC) executed by the same executor + gate, via a live `viem` wallet

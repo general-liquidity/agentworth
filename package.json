@@ -29,6 +29,10 @@
     ".": {
       "types": "./dist/sdk/index.d.ts",
       "import": "./dist/sdk/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/run.d.ts",
+      "import": "./dist/mcp/run.js"
     }
   },
   "files": [
