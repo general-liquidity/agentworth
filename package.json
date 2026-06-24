@@ -37,6 +37,10 @@
     "./integrations": {
       "types": "./dist/integrations/index.d.ts",
       "import": "./dist/integrations/index.js"
+    },
+    "./gate": {
+      "types": "./dist/portable.d.ts",
+      "import": "./dist/portable.js"
     }
   },
   "files": [

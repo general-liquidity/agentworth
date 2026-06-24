@@ -12,6 +12,17 @@ were built across the preceding milestones; this release adds the production
 hardening and integration surfaces.
 
 ### Added
+- **Framework integration adapters** (`@general-liquidity/opensolvency/integrations`)
+  — a framework-agnostic `gatedPay` handler (+ shared name/description/zod schema)
+  and a native Vercel AI SDK `createGatedPayTool`, so any agent framework (AI SDK,
+  Mastra, LangChain, OpenAI Agents, CrewAI) gates its spend in one line.
+- **Portable gate kernel** (`@general-liquidity/opensolvency/gate`) — `evaluateGate`
+  plus its pure inputs with **zero `node:` dependencies**, so the same invariant runs
+  in a browser / edge worker / other-language host. A test asserts the whole import
+  graph stays node-free (chosen over a WASM port to keep one source of truth).
+- **Property/fuzz tests on `evaluateGate`** — 2000 seeded random (intent, mandate-set)
+  scenarios asserting the load-bearing invariants (deny-match ⇒ block; auto-execute ⇒
+  a live covering mandate within its per-tx cap; no cover ⇒ never auto-execute).
 - **Standalone MCP package** — `@general-liquidity/opensolvency-mcp`, an npx-able
   MCP server (`npx -y @general-liquidity/opensolvency-mcp`) so editors configure it
   like any other MCP server. It delegates to the main package's new `./mcp` subpath
