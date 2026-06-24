@@ -39,6 +39,28 @@ export interface PgClient {
   query(text: string, params?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
 }
 
+/** Optional cross-instance coherence seam (Postgres LISTEN/NOTIFY). An operator
+ *  wires this to a dedicated `pg.Client` that has run `LISTEN os_changes` and
+ *  forwards each `notification.payload` to the handler. When provided, this store
+ *  PUBLISHES its writes (via `pg_notify`) and keeps its read mirror coherent with
+ *  writes made by OTHER instances against the same database.
+ *
+ *  Scope: this gives READ coherence for mandates / intents / receipts / meta across
+ *  instances. The SIGNED AUDIT CHAIN remains single-writer (it is hash-linked, so
+ *  two appenders would fork it) — route writes through one instance, or treat the
+ *  others as read replicas. Coherence is eventual (sub-second NOTIFY latency), not
+ *  strongly consistent; for a hard guarantee on the write path, use a single writer. */
+export interface PgNotificationListener {
+  listen(channel: string, handler: (payload: string) => void): Promise<void>;
+}
+
+export interface PostgresStoreOptions {
+  /** Wire cross-instance read coherence (LISTEN/NOTIFY). Omit for single-writer. */
+  notifications?: PgNotificationListener;
+}
+
+const CHANNEL = "os_changes";
+
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS os_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS os_mandates (id TEXT PRIMARY KEY, data JSONB NOT NULL);
@@ -63,12 +85,23 @@ export interface PostgresStoreHandle {
   flush: () => Promise<void>;
 }
 
-export function createPostgresStore(client: PgClient): PostgresStoreHandle {
+export function createPostgresStore(
+  client: PgClient,
+  opts: PostgresStoreOptions = {},
+): PostgresStoreHandle {
   let mirror: Store | undefined;
   const requireMirror = (): Store => {
     if (!mirror) throw new Error("postgres store used before `ready` resolved");
     return mirror;
   };
+
+  // Publish a change so other instances refresh that entity. Only active when a
+  // notification listener is wired (a single-writer deployment skips it). The audit
+  // chain is deliberately NOT published — it stays single-writer.
+  function notify(kind: string, id: string | number): void {
+    if (!opts.notifications) return;
+    enqueue(() => client.query(`SELECT pg_notify('${CHANNEL}', $1)`, [`${kind}:${id}`]));
+  }
 
   // Serialized write queue: preserves ordering (the audit chain is hash-linked, so
   // order matters), runs every write even if one fails, and surfaces the first
@@ -104,8 +137,14 @@ export function createPostgresStore(client: PgClient): PostgresStoreHandle {
         [id, JSON.stringify(data)],
       ),
     );
-  const persistMandate = (id: string) => upsert("os_mandates", id, requireMirror().getMandate(id));
-  const persistIntent = (id: string) => upsert("os_intents", id, requireMirror().getIntent(id));
+  const persistMandate = (id: string) => {
+    upsert("os_mandates", id, requireMirror().getMandate(id));
+    notify("mandate", id);
+  };
+  const persistIntent = (id: string) => {
+    upsert("os_intents", id, requireMirror().getIntent(id));
+    notify("intent", id);
+  };
 
   const store: Store = {
     operatorKey: () => requireMirror().operatorKey(),
@@ -119,6 +158,7 @@ export function createPostgresStore(client: PgClient): PostgresStoreHandle {
           [k, v],
         ),
       );
+      notify("meta", k);
     },
 
     insertMandate(m) {
@@ -151,6 +191,7 @@ export function createPostgresStore(client: PgClient): PostgresStoreHandle {
     insertReceipt(r) {
       requireMirror().insertReceipt(r);
       upsert("os_receipts", r.id, r);
+      notify("receipt", r.id);
     },
     getReceipt: (id) => requireMirror().getReceipt(id),
 
@@ -201,6 +242,53 @@ export function createPostgresStore(client: PgClient): PostgresStoreHandle {
       m.appendAudit(asObject<AuditEntry>(row.data));
     }
     mirror = m;
+
+    // Cross-instance read coherence: refresh an entity in the mirror when another
+    // instance reports a change. Eventual (NOTIFY-latency) consistency; audit is
+    // not refreshed (single-writer chain). Self-notifications are harmless (the
+    // reload is idempotent against our own just-written state).
+    if (opts.notifications) {
+      await opts.notifications.listen(CHANNEL, (payload) => {
+        void reloadEntity(payload);
+      });
+    }
+  }
+
+  // Re-read one entity from Postgres into the mirror, upserting (the mirror may not
+  // have it yet, or may hold a stale copy from before another instance's write).
+  async function reloadEntity(payload: string): Promise<void> {
+    if (!mirror) return;
+    const sep = payload.indexOf(":");
+    if (sep < 0) return;
+    const kind = payload.slice(0, sep);
+    const id = payload.slice(sep + 1);
+    if (kind === "mandate") {
+      const rows = (await client.query("SELECT data FROM os_mandates WHERE id = $1", [id])).rows;
+      if (rows[0]) {
+        const data = asObject<Parameters<Store["insertMandate"]>[0]>(rows[0].data);
+        mirror.getMandate(id) ? mirror.updateMandate(id, data) : mirror.insertMandate(data);
+      }
+    } else if (kind === "intent") {
+      const rows = (await client.query("SELECT data FROM os_intents WHERE id = $1", [id])).rows;
+      if (rows[0]) {
+        const si = asObject<import("../core/store.ts").StoredIntent>(rows[0].data);
+        mirror.getIntent(id)
+          ? mirror.updateIntent(id, {
+              status: si.status,
+              settledAt: si.settledAt,
+              receiptId: si.receiptId,
+              reasons: si.reasons,
+              refundedMinor: si.refundedMinor,
+            })
+          : mirror.insertIntent(si);
+      }
+    } else if (kind === "receipt") {
+      const rows = (await client.query("SELECT data FROM os_receipts WHERE id = $1", [id])).rows;
+      if (rows[0]) mirror.insertReceipt(asObject(rows[0].data)); // insertReceipt is idempotent
+    } else if (kind === "meta") {
+      const rows = (await client.query("SELECT value FROM os_meta WHERE key = $1", [id])).rows;
+      if (rows[0]) mirror.setMeta(id, String(rows[0].value));
+    }
   }
 
   return { store, ready: init(), flush };

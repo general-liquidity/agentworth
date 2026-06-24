@@ -38,8 +38,13 @@ hardening and integration surfaces.
   changes), and writes are persisted through a serialized queue with a `flush()`
   barrier the executor awaits (the new `commit` dep) so a payment's writes are
   durable before `execute()`/`approve()` resolves — no write-behind data-loss risk.
-  The `pg` client is injected (operator brings `pg.Pool`); single-writer for now
-  (multi-instance cache invalidation via LISTEN/NOTIFY is a documented follow-on).
+  The `pg` client is injected (operator brings `pg.Pool`).
+- **Postgres multi-instance read coherence** — an optional `PgNotificationListener`
+  seam (Postgres LISTEN/NOTIFY): a store publishes its writes via `pg_notify` and
+  refreshes its read mirror when another instance changes a mandate / intent /
+  receipt / meta row, so secondary instances stay current without re-reading the
+  whole table. Eventual (NOTIFY-latency) consistency; the signed audit chain stays
+  single-writer (hash-linked), so writes route through one instance.
 - Packaging: `LICENSE` (MIT), this changelog, and a publishable package manifest.
 - **Publishable build** — `npm run build` compiles `src` → `dist` (ESM + `.d.ts`),
   rewriting `.ts` import specifiers to `.js` (TS `rewriteRelativeImportExtensions`).

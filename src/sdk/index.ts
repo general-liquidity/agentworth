@@ -305,4 +305,9 @@ export type { ExecuteResult, RefundResult } from "../core/executor.ts";
 export type { Store, StoredIntent, IntentStatus } from "../core/store.ts";
 export { createMemoryStore } from "../store/memoryStore.ts";
 export { createPostgresStore } from "../store/postgresStore.ts";
-export type { PgClient, PostgresStoreHandle } from "../store/postgresStore.ts";
+export type {
+  PgClient,
+  PostgresStoreHandle,
+  PgNotificationListener,
+  PostgresStoreOptions,
+} from "../store/postgresStore.ts";
