@@ -311,6 +311,7 @@ export {
   type AuditExportFormat,
 } from "../audit/export.ts";
 export { createPostgresStore } from "../store/postgresStore.ts";
+export { createMultiTenantStore, type MultiTenantStore } from "../store/multiTenant.ts";
 export type {
   PgClient,
   PostgresStoreHandle,
