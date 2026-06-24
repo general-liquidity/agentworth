@@ -37,6 +37,7 @@ import { detectMoment, type MomentEvent } from "../finance/moments.ts";
 import { listSkills, loadSkill } from "../skills/loader.ts";
 import { evaluateOffer, type ServiceCatalog } from "../finance/offer.ts";
 import { detectTraps } from "../finance/cognitiveTraps.ts";
+import { detectStructuralConstraints } from "../finance/structuralConstraints.ts";
 import { forecastGoal, coverageReport } from "../finance/forecast.ts";
 import { checkInPrompt, readCheckIn, applyCheckIn } from "../finance/emotionalCheckIn.ts";
 import { findOptimizations, type MarketRates } from "../finance/optimizations.ts";
@@ -299,6 +300,15 @@ function financeTools(deps: FinanceAgentDeps, anxietyDriven: boolean, sink: Exec
           annualGrowthRate:
             annualGrowthRate ?? (deps.marketRates ?? REFERENCE_MARKET_RATES).bestSavingsRate,
         }),
+    }),
+    structural_check: tool({
+      description:
+        "Surface STRUCTURAL (systemic) constraints where individual optimisation is the " +
+        "wrong frame — income below essentials, support owed-but-unclaimed, predatory-credit " +
+        "dependence — each named without blame, with the systemic lever to pull instead. " +
+        "Advisory — moves no money.",
+      inputSchema: z.object({}),
+      execute: async () => detectStructuralConstraints(deps.profile),
     }),
     peer_nudge: tool({
       description:

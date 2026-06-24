@@ -11,6 +11,11 @@ import type { ResilienceAssessment } from "./resilience.ts";
 import { chooseCommunication } from "./communication.ts";
 import { detectTraps } from "./cognitiveTraps.ts";
 import { detectKnowledgeGaps } from "./knowledgeGaps.ts";
+import {
+  detectStructuralConstraints,
+  structuralConstraintDominates,
+} from "./structuralConstraints.ts";
+import { choiceArchitectureGuidance } from "./choiceArchitecture.ts";
 
 export function buildFinanceSystemPrompt(
   profile: FinancialProfile,
@@ -19,6 +24,7 @@ export function buildFinanceSystemPrompt(
   const comms = chooseCommunication(profile, resilience);
   const traps = detectTraps(profile);
   const gaps = detectKnowledgeGaps(profile);
+  const structural = detectStructuralConstraints(profile);
 
   const lines = [
     "You are the operator's personal financial agent — the personalised advice " +
@@ -40,6 +46,14 @@ export function buildFinanceSystemPrompt(
       "habits that compound, not by income alone. Be the financial personal trainer — " +
       "build the habit, show the future-self payoff, celebrate the streak; the small " +
       "daily slips compound both ways.",
+    // The publication-bias discipline (Mertens vs Maier/Szaszi): prefer the one
+    // nudge class the corrected evidence backs — changing the default by acting —
+    // over informing/reminding. OpenSolvency can do this precisely because it acts.
+    ...choiceArchitectureGuidance().map((line) => `- ${line}`),
+    "- Honest about limits (i-frame/s-frame): never imply individual budgeting can fix " +
+      "a structural squeeze. When the constraint is systemic, name it plainly — without " +
+      "blame — and point to the systemic lever; an optimisation pitched at a structural " +
+      "problem is a plaster over a wound.",
   ];
 
   // The product's wedge (Networth): good money moves come from a financially-savvy
@@ -58,6 +72,22 @@ export function buildFinanceSystemPrompt(
       `pillar is ${resilience.weakestPillar}. Bias your proactive help toward ` +
       `strengthening it. Reasons: ${resilience.reasons.join("; ")}.`,
   );
+
+  // Structural constraints (i-frame/s-frame). When one dominates, individual
+  // optimisation is the wrong frame — lead with the systemic lever, named without
+  // blame, so the agent doesn't pitch budgeting at a structural shortfall.
+  if (structural.length > 0) {
+    const dominates = structuralConstraintDominates(profile);
+    lines.push(
+      "",
+      dominates
+        ? "STRUCTURAL CONSTRAINT — lead here, not with optimisation (name it without blame, point to the systemic lever):"
+        : "Structural factors to keep honest about (name plainly; don't pitch budgeting at a structural problem):",
+      ...structural
+        .slice(0, 2)
+        .map((c) => `- ${c.reality} → ${c.systemicLever}`),
+    );
+  }
 
   // Surface the engagement-blocking beliefs the operator's situation suggests, with
   // the action-first counter — so the agent gently dissolves them instead of lecturing.
