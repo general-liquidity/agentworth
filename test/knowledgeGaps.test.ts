@@ -82,6 +82,16 @@ test("inflation-erodes-idle-cash trips on idle cash below inflation", () => {
   assert.ok(ids.includes("inflation-erodes-idle-cash"));
 });
 
+test("bnpl-is-still-debt trips when a BNPL balance is carried", () => {
+  const ids = idsOf(CLEAN, { ...CLEAN_SIGNALS, bnplBalanceMinor: 30_000 });
+  assert.ok(ids.includes("bnpl-is-still-debt"));
+});
+
+test("bnpl-is-still-debt trips when the operator uses BNPL", () => {
+  const ids = idsOf(CLEAN, { ...CLEAN_SIGNALS, usesBnpl: true });
+  assert.ok(ids.includes("bnpl-is-still-debt"));
+});
+
 test("a profile loaded with problems triggers every gap", () => {
   const p: FinancialProfile = {
     ...CLEAN,
@@ -96,6 +106,7 @@ test("a profile loaded with problems triggers every gap", () => {
     registeredToVote: false,
     cashSavingsRate: 0,
     inflationRate: 0.04,
+    bnplBalanceMinor: 40_000,
   };
   const ids = idsOf(p, signals);
   for (const gap of KNOWLEDGE_GAP_CATALOGUE) {
@@ -121,6 +132,12 @@ test("measured prevalences match the quiz findings", () => {
   assert.equal(byId.get("credit-score-factors-misunderstood"), 0.6);
   assert.equal(byId.get("compounding-frequency"), 0.35);
   assert.equal(byId.get("inflation-erodes-idle-cash"), 0.3);
+  // bnpl-is-still-debt is from the research batch, not the 340-person quiz — no prevalence.
+  assert.equal(byId.get("bnpl-is-still-debt"), undefined);
+});
+
+test("the catalogue carries every defined gap", () => {
+  assert.equal(KNOWLEDGE_GAP_CATALOGUE.length, 7);
 });
 
 test("detection is deterministic and sorted by relevance descending", () => {

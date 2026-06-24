@@ -159,6 +159,66 @@ test("retirement-distortion: career stage, retirement goal, nothing saved, or ma
   );
 });
 
+test("cant-be-responsible-as-a-student: student stage, or marker", () => {
+  // Structural: the student identity the belief gates on.
+  assert.ok(
+    ids({ stage: "early-student" }).includes(
+      "cant-be-responsible-as-a-student",
+    ),
+  );
+  // Marker on an otherwise-clean profile.
+  assert.ok(
+    ids({}, "there's no way to be responsible as a student").includes(
+      "cant-be-responsible-as-a-student",
+    ),
+  );
+});
+
+test("all-debt-is-bad: no high-cost debt + student, or marker", () => {
+  // Structural: fears debt as a category while carrying none — a student.
+  assert.ok(
+    ids({ stage: "early-student", highCostDebtMinor: 0 }).includes(
+      "all-debt-is-bad",
+    ),
+  );
+  // Marker on an otherwise-clean profile.
+  assert.ok(
+    ids({}, "all debt is bad, I'll never go into debt").includes(
+      "all-debt-is-bad",
+    ),
+  );
+});
+
+test("system-rigged-against-students: student with unclaimed support, or marker", () => {
+  // Structural: a student with free wins left on the table.
+  assert.ok(
+    ids({ stage: "early-student", hasUnclaimedSupport: true }).includes(
+      "system-rigged-against-students",
+    ),
+  );
+  // Marker on an otherwise-clean profile.
+  assert.ok(
+    ids({}, "the system is rigged against students, why even try").includes(
+      "system-rigged-against-students",
+    ),
+  );
+});
+
+test("degree-guarantees-job: student banking on the degree, or marker", () => {
+  // Structural: student with capacity but nothing started, waiting on graduation.
+  assert.ok(
+    ids({ stage: "late-student", liquidSavingsMinor: 0 }).includes(
+      "degree-guarantees-job",
+    ),
+  );
+  // Marker on an otherwise-clean profile.
+  assert.ok(
+    ids({}, "my degree will get me a job once I graduate").includes(
+      "degree-guarantees-job",
+    ),
+  );
+});
+
 test("every detected trap carries an action-first counter and evidence", () => {
   const detected = detectTraps(
     profile({
@@ -201,8 +261,8 @@ test("a marker match outweighs a clean profile (markers always surface)", () => 
   assert.ok(detected[0].relevance >= 50);
 });
 
-test("the catalogue exposes all nine traps with counters, no detection state", () => {
-  assert.equal(TRAP_CATALOGUE.length, 9);
+test("the catalogue exposes all thirteen traps with counters, no detection state", () => {
+  assert.equal(TRAP_CATALOGUE.length, 13);
   const expected: TrapId[] = [
     "real-job-unlocks-planning",
     "investing-is-gambling",
@@ -213,6 +273,10 @@ test("the catalogue exposes all nine traps with counters, no detection state", (
     "planning-is-redundant-because-uncertain",
     "savvy-means-no-fun",
     "retirement-distortion",
+    "cant-be-responsible-as-a-student",
+    "all-debt-is-bad",
+    "system-rigged-against-students",
+    "degree-guarantees-job",
   ];
   assert.deepEqual(
     TRAP_CATALOGUE.map((t) => t.id),

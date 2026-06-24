@@ -21,7 +21,8 @@ export type KnowledgeGapId =
   | "isa-allowance-unknown"
   | "credit-score-factors-misunderstood"
   | "compounding-frequency"
-  | "inflation-erodes-idle-cash";
+  | "inflation-erodes-idle-cash"
+  | "bnpl-is-still-debt";
 
 /**
  * Caller-supplied signals for facts the FinancialProfile doesn't carry. All
@@ -37,6 +38,10 @@ export interface KnowledgeSignals {
   cashSavingsRate?: number;
   /** Prevailing inflation rate (annual fraction), injected — the kernel reads no feed. */
   inflationRate?: number;
+  /** Whether the operator uses Buy-Now-Pay-Later (Klarna / Clearpay / etc.). */
+  usesBnpl?: boolean;
+  /** Outstanding BNPL balance in minor units, if known — counts as debt to clear. */
+  bnplBalanceMinor?: number;
 }
 
 export interface KnowledgeGap {
@@ -263,6 +268,43 @@ const SPECS: GapSpec[] = [
         reasons.push(
           `idle cash above buffer at ${(cashRate * 100).toFixed(1)}% < ${(inflation * 100).toFixed(1)}% inflation — losing real value`,
         );
+      }
+      return { score, reasons };
+    },
+  },
+  {
+    // Research: the Ben Chat sessions flagged BNPL (Klarna / Clearpay) as the NEW
+    // debt trap — structurally unlike a credit card because young people don't
+    // perceive it AS debt. It feels like "paying in instalments", so it stacks
+    // invisibly across retailers, missed instalments incur fees, and it increasingly
+    // reports to credit files. A factual misconception (not an engagement block), so
+    // it lives here. Action: treat any open BNPL as debt to clear, stop stacking,
+    // see the total in one place.
+    id: "bnpl-is-still-debt",
+    misconception: "Buy-Now-Pay-Later (Klarna / Clearpay) isn't really debt.",
+    fact:
+      "BNPL is borrowing: miss an instalment and fees hit, it increasingly reports " +
+      "to your credit file, and because it's spread across retailers it stacks up " +
+      "invisibly. 'Paying in instalments' is still owing money.",
+    action:
+      "Treat every open BNPL plan as debt to clear before you save or invest, stop " +
+      "opening new ones, and get all of it in one place so you can see the real total. " +
+      "I'll fold it into your debt plan.",
+    signal: (p, s) => {
+      const reasons: string[] = [];
+      let score = 0;
+      // Explicit balance is the strongest signal: it's quantified debt being carried.
+      if ((s.bnplBalanceMinor ?? 0) > 0) {
+        score += 55;
+        reasons.push("carrying a BNPL balance — it's borrowing to clear, not just instalments");
+      } else if (s.usesBnpl === true) {
+        score += 45;
+        reasons.push("uses BNPL — it's debt that stacks invisibly across retailers");
+      }
+      // Reliance on informal credit is the profile-level footprint of easy-debt habits.
+      if (p.reliesOnInformalCredit) {
+        score += 20;
+        reasons.push("relies on informal credit — easy-debt accumulation likely, BNPL included");
       }
       return { score, reasons };
     },

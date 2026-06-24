@@ -22,7 +22,11 @@ export type TrapId =
   | "no-financial-family-so-adrift"
   | "planning-is-redundant-because-uncertain"
   | "savvy-means-no-fun"
-  | "retirement-distortion";
+  | "retirement-distortion"
+  | "cant-be-responsible-as-a-student"
+  | "all-debt-is-bad"
+  | "system-rigged-against-students"
+  | "degree-guarantees-job";
 
 export interface TrapDefinition {
   id: TrapId;
@@ -396,6 +400,167 @@ const SPECS: TrapSpec[] = [
       if (monthlySurplusMinor(p) > 0 && p.liquidSavingsMinor <= 0) {
         score += 15;
         reasons.push("has surplus to start a long-horizon step but none running");
+      }
+      return { score, reasons };
+    },
+  },
+  {
+    // Focus-group statement battery: "it's impossible to win / be financially
+    // responsible AS a student" — a temporal-identity gate. Distinct from the
+    // real-job fallacy (which defers planning to a future salary); this one denies
+    // that responsibility is even POSSIBLE in the student identity right now.
+    // Counter: one tiny responsible move available AS a student proves it's possible.
+    id: "cant-be-responsible-as-a-student",
+    belief: "It's impossible to be financially responsible while I'm a student.",
+    markers: [
+      "as a student",
+      "just a student",
+      "i'm a student",
+      "im a student",
+      "while i'm a student",
+      "while im a student",
+      "can't win as a student",
+      "cant win as a student",
+      "no way to be responsible",
+      "impossible as a student",
+      "students can't",
+      "students cant",
+      "students never",
+    ],
+    counter:
+      "You can — as a student, right now. Pick one tiny responsible move (e.g. move £5 into a separate pot today). Doing it once proves the 'impossible while I'm a student' story wrong.",
+    signal: (p) => {
+      const reasons: string[] = [];
+      let score = 0;
+      // The exact identity the belief is keyed to: being a student.
+      if (p.stage === "early-student" || p.stage === "late-student") {
+        score += 35;
+        reasons.push("student stage — the identity the 'impossible as a student' belief gates on");
+        if (p.financialAnxiety === "high" || p.financialAnxiety === "defeated") {
+          score += 15;
+          reasons.push("anxiety/defeat — hardens 'I can't win as a student' into a rule");
+        }
+      }
+      return { score, reasons };
+    },
+  },
+  {
+    // Focus-group + expert interview (Martin Lewis / Bristol advisor): "all debt is
+    // bad / I'll never go into debt." The INVERSE of debt-prioritisation — here the
+    // student fear-avoids even GOOD debt (a mortgage; the student loan, which the
+    // advisor frames as "a gradual tax", not a debt to dread). Counter: separate
+    // good leverage that builds assets from the high-cost debt actually worth clearing.
+    id: "all-debt-is-bad",
+    belief: "All debt is bad — I'll never go into debt.",
+    markers: [
+      "all debt is bad",
+      "debt is bad",
+      "never go into debt",
+      "never get into debt",
+      "avoid all debt",
+      "hate debt",
+      "scared of debt",
+      "won't take on debt",
+      "wont take on debt",
+      "no debt ever",
+      "debt-free no matter",
+      "student loan is bad",
+    ],
+    counter:
+      "Not all debt is the same. The student loan behaves more like a gradual tax, and a mortgage builds an asset — don't fear-avoid the good leverage. Just clear the high-cost kind (cards, BNPL) first; I'll show you which is which.",
+    signal: (p) => {
+      const reasons: string[] = [];
+      let score = 0;
+      // The tell: a student who fears debt as a category while carrying NO high-cost
+      // debt — the fear is of debt-the-concept (the student loan), not a real balance.
+      if (
+        (p.stage === "early-student" || p.stage === "late-student") &&
+        p.highCostDebtMinor <= 0
+      ) {
+        score += 35;
+        reasons.push("student with no high-cost debt — likely reads the student loan as bad debt");
+      }
+      return { score, reasons };
+    },
+  },
+  {
+    // Focus-group statement battery: "the financial system is rigged against me as a
+    // student, so why try." Defeat-adjacent but specifically SYSTEMIC (blames the
+    // system, not the self). Counter: surface the concrete levers that ARE in their
+    // control — the free wins — so agency is restored WITHOUT denying the real headwinds.
+    id: "system-rigged-against-students",
+    belief: "The financial system is rigged against students — so why try.",
+    markers: [
+      "system is rigged",
+      "rigged against students",
+      "rigged against me",
+      "stacked against",
+      "system is against",
+      "designed to keep",
+      "house always wins",
+      "why even try",
+      "why bother trying",
+      "the system",
+      "set up to fail",
+      "no chance for students",
+    ],
+    counter:
+      "The headwinds are real, but some levers are fully yours: the free wins (claim hardship funds, a 0% student account, switching incentives). Let's pull one this week — agency without pretending the system is fair.",
+    signal: (p) => {
+      const reasons: string[] = [];
+      let score = 0;
+      // Systemic-defeat condition: a student facing real headwinds with free wins
+      // left on the table (unclaimed support) — the exact levers the counter restores.
+      if (p.stage === "early-student" || p.stage === "late-student") {
+        score += 20;
+        reasons.push("student stage — the identity the 'rigged against students' belief targets");
+      }
+      if (p.hasUnclaimedSupport || !p.entitlementsAware) {
+        score += 20;
+        reasons.push("free wins left on the table — the controllable levers the belief ignores");
+      }
+      if (p.financialAnxiety === "defeated") {
+        score += 15;
+        reasons.push("defeated affect — 'why try' framing characteristic of systemic defeat");
+      }
+      return { score, reasons };
+    },
+  },
+  {
+    // Focus-group statement battery: "my degree will get me a job / university
+    // guarantees financial success." A future-outcome dependency that licenses doing
+    // nothing now. Counter: decouple the degree from the financial plan — start the
+    // plan today regardless of how the career outcome lands.
+    id: "degree-guarantees-job",
+    belief: "My degree will get me a job — university guarantees financial success.",
+    markers: [
+      "my degree will",
+      "degree will get me",
+      "degree guarantees",
+      "once i graduate i'll",
+      "once i graduate ill",
+      "university will sort",
+      "uni will sort",
+      "guaranteed a job",
+      "guarantees a job",
+      "degree means",
+      "graduate scheme will",
+      "my degree sorts",
+    ],
+    counter:
+      "Treat the plan and the degree as separate things. The degree may or may not land the job — but the financial plan can start today and only helps either way. Let's set up one small step now, independent of the career outcome.",
+    signal: (p) => {
+      const reasons: string[] = [];
+      let score = 0;
+      // The belief leans on a future graduation outcome to defer acting now — a
+      // student with capacity to start but nothing set aside is the structural tell.
+      if (p.stage === "early-student" || p.stage === "late-student") {
+        score += 30;
+        reasons.push("student stage — banking on the post-degree outcome to sort finances");
+        if (monthlySurplusMinor(p) > 0 && p.liquidSavingsMinor <= 0) {
+          score += 15;
+          reasons.push("has capacity to start now but is waiting on the degree outcome");
+        }
       }
       return { score, reasons };
     },

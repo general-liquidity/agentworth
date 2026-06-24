@@ -42,6 +42,7 @@ import { checkInPrompt, readCheckIn, applyCheckIn } from "../finance/emotionalCh
 import { findOptimizations, type MarketRates } from "../finance/optimizations.ts";
 import { REFERENCE_MARKET_RATES } from "../finance/referenceRates.ts";
 import { chooseCommunication } from "../finance/communication.ts";
+import { rankSlips } from "../finance/slipCost.ts";
 
 export interface FinanceAgentDeps {
   model: LanguageModel;
@@ -254,6 +255,29 @@ function financeTools(deps: FinanceAgentDeps, anxietyDriven: boolean, sink: Exec
       // (cash accounts, switch offers seen) sharpens it when supplied via deps.
       execute: async () =>
         findOptimizations(deps.profile, deps.marketRates ?? REFERENCE_MARKET_RATES),
+    }),
+    cost_slip: tool({
+      description:
+        "Make the long-term cost of a small recurring habit visible: annual drain, what " +
+        "the same money would grow to if invested, and the swap. Advisory — moves no money.",
+      inputSchema: z.object({
+        slips: z.array(
+          z.object({
+            label: z.string(),
+            amountMinor: z.number().int().positive(),
+            cadence: z.enum(["daily", "weekly", "monthly"]),
+            swap: z.string().optional(),
+          }),
+        ),
+        years: z.number().int().positive(),
+        annualGrowthRate: z.number().nonnegative().optional(),
+      }),
+      execute: async ({ slips, years, annualGrowthRate }) =>
+        rankSlips(slips, {
+          years,
+          annualGrowthRate:
+            annualGrowthRate ?? (deps.marketRates ?? REFERENCE_MARKET_RATES).bestSavingsRate,
+        }),
     }),
   };
 }
