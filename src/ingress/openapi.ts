@@ -3,21 +3,52 @@
 // machine-readable contract. This documents the EXISTING endpoints in server.ts;
 // keep the two in sync (the contract test asserts the documented paths exist).
 //
-// Hand-authored (not generated) to avoid a schema-gen dependency — the surface is
-// small and stable. Returns a plain object; the server JSON-stringifies it.
+// The request/response component SCHEMAS are DERIVED from the same Zod schemas the
+// gate validates against (`@asteasolutions/zod-to-openapi`), so the published
+// contract can't drift from the runtime validation: change the Zod schema and the
+// OpenAPI body shape follows. The paths + descriptions are still hand-authored
+// (small, stable surface); only the schema bodies are generated. Returns a plain
+// object; the server JSON-stringifies it.
+
+import { extendZodWithOpenApi, OpenAPIRegistry, OpenApiGeneratorV31 } from "@asteasolutions/zod-to-openapi";
+import { z } from "zod";
+import { PaymentIntentDraftSchema } from "../agent/schema.ts";
+
+// Teach this zod instance the `.openapi()` metadata helper the generator relies on.
+extendZodWithOpenApi(z);
+
+// The `.openapi()` helper the generator stamps refIds with. We call it explicitly
+// (rather than relying on it being present on every schema instance) because under
+// the ts loader a schema imported from another module can carry a prototype the
+// extension didn't reach; invoking the patched method directly is realm-independent.
+const withRefId = (
+  (z as unknown as { ZodType: { prototype: { openapi: (refId: string) => unknown } } }).ZodType
+    .prototype.openapi
+);
+
+/** The IntentResult response body, as a Zod schema, so it too is derived (and the
+ *  outcome enum stays in lockstep with the executor's statuses). */
+const IntentResultSchema = z.object({
+  intentId: z.string(),
+  outcome: z.enum(["settled", "pending", "blocked", "failed"]),
+  reasons: z.array(z.string()),
+  receiptId: z.string().nullable(),
+  verified: z.boolean().nullable(),
+});
+
+/** Generate the `components.schemas` block from the live Zod schemas. Named
+ *  components (`PaymentIntentDraft`, `IntentResult`) are referenced by `$ref` in the
+ *  paths, exactly as the hand-authored doc did — so the contract test stays green. */
+function generateSchemas(): Record<string, unknown> {
+  const registry = new OpenAPIRegistry();
+  registry.register("PaymentIntentDraft", withRefId.call(PaymentIntentDraftSchema, "PaymentIntentDraft") as typeof PaymentIntentDraftSchema);
+  registry.register("IntentResult", withRefId.call(IntentResultSchema, "IntentResult") as typeof IntentResultSchema);
+  const generated = new OpenApiGeneratorV31(registry.definitions).generateComponents();
+  return (generated.components?.schemas ?? {}) as Record<string, unknown>;
+}
 
 export function buildOpenApiDocument(version: string): Record<string, unknown> {
-  const intentResult = {
-    type: "object",
-    properties: {
-      intentId: { type: "string" },
-      outcome: { type: "string", enum: ["settled", "pending", "blocked", "failed"] },
-      reasons: { type: "array", items: { type: "string" } },
-      receiptId: { type: ["string", "null"] },
-      verified: { type: ["boolean", "null"] },
-    },
-    required: ["intentId", "outcome", "reasons"],
-  };
+  const schemas = generateSchemas();
 
   return {
     openapi: "3.1.0",
@@ -33,21 +64,8 @@ export function buildOpenApiDocument(version: string): Record<string, unknown> {
       securitySchemes: {
         bearerAuth: { type: "http", scheme: "bearer" },
       },
-      schemas: {
-        PaymentIntentDraft: {
-          type: "object",
-          properties: {
-            payee: { type: "string" },
-            payeeClass: { type: "string" },
-            amount: { type: "integer", description: "minor units (e.g. pence)" },
-            currency: { type: "string" },
-            rail: { type: "string" },
-            rationale: { type: "string" },
-          },
-          required: ["payee", "payeeClass", "amount", "currency", "rail", "rationale"],
-        },
-        IntentResult: intentResult,
-      },
+      // Derived from the live Zod schemas — see generateSchemas() above.
+      schemas,
     },
     // Token-gated when an ingress token is configured; open on loopback otherwise.
     security: [{ bearerAuth: [] }],

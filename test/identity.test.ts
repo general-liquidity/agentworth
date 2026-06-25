@@ -7,6 +7,7 @@ import {
   noopVerifier,
   staticIdentityVerifier,
   visaTapVerifier,
+  httpMessageSignaturesVerifier,
   type SignedRequest,
 } from "../src/identity/verifier.ts";
 import { evaluateGate } from "../src/core/gate.ts";
@@ -143,6 +144,29 @@ test("visaTapVerifier rejects a non-ed25519 alg", async () => {
   const res = await v.verify(signRequest({ created: 999_900, alg: "rsa-pss-sha512" }));
   assert.equal(res.verified, false);
   assert.ok(res.reasons.some((r) => r.includes("ed25519")));
+});
+
+// --- Optional http-message-signatures path verifies the SAME vector -----------
+test("httpMessageSignaturesVerifier verifies the same vector as the bespoke verifier", async () => {
+  const opts = {
+    resolveKey: (k: string) => (k === KEYID ? KEY_PAIR.publicKey : undefined),
+    now: () => 1_000_000 * 1000,
+  };
+  const req = signRequest({ created: 999_900 });
+  const bespoke = await visaTapVerifier(opts).verify(req);
+  const lib = await httpMessageSignaturesVerifier(opts).verify(req);
+  // The optional dep is absent in CI → the lib-backed verifier delegates to bespoke
+  // and yields the same verdict (verified, attestation, agentId) on the same vector.
+  assert.equal(lib.verified, bespoke.verified);
+  assert.equal(lib.verified, true);
+  assert.equal(lib.identity.attestation, bespoke.identity.attestation);
+  assert.equal(lib.identity.agentId, bespoke.identity.agentId);
+});
+
+test("httpMessageSignaturesVerifier rejects a tampered signature like the bespoke path", async () => {
+  const opts = { resolveKey: () => KEY_PAIR.publicKey, now: () => 1_000_000 * 1000 };
+  const res = await httpMessageSignaturesVerifier(opts).verify(signRequest({ created: 999_900, tamper: true }));
+  assert.equal(res.verified, false);
 });
 
 const NOW = "2026-05-30T12:00:00.000Z";
