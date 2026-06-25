@@ -31,7 +31,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { Executor, ExecuteResult } from "../core/executor.ts";
 import type { PaymentIntent, RailKind } from "../core/types.ts";
 
-/** One x402 payment requirement, as a resource server lists it in a 402 body. */
+/** One x402 payment requirement, as a resource server lists it in a 402 body —
+ * field-exact with the V1 PaymentRequirements schema. `maxTimeoutSeconds` and
+ * `extra` (the asset's EIP-712 name/version) are required for a facilitator to
+ * build a valid EIP-3009 authorization, so the proxy must preserve them when it
+ * hands a requirement to the proof builder. */
 export interface X402Requirement {
   scheme: string; // e.g. "exact"
   network: string; // e.g. "base", "base-sepolia", "solana"
@@ -40,6 +44,9 @@ export interface X402Requirement {
   maxAmountRequired: string; // minor-units, decimal string (x402 spec uses strings)
   resource?: string;
   description?: string;
+  mimeType?: string;
+  maxTimeoutSeconds?: number;
+  extra?: { name?: string; version?: string };
 }
 
 /** The x402 challenge body a resource server returns alongside a 402. */
@@ -208,7 +215,12 @@ function parseChallenge(res: ProxyResponse): X402Challenge | null {
   try {
     const parsed = JSON.parse(res.body) as Partial<X402Challenge>;
     if (parsed && Array.isArray(parsed.accepts)) {
-      return { accepts: parsed.accepts, x402Version: parsed.x402Version };
+      return {
+        accepts: parsed.accepts,
+        x402Version: parsed.x402Version ?? 1,
+        error: parsed.error,
+        resource: parsed.resource,
+      };
     }
   } catch {
     // fall through

@@ -9,7 +9,7 @@ import { DEFAULT_GATE_CONFIG, type Mandate, type PaymentIntent } from "../src/co
 import { createRailRegistry } from "../src/rails/registry.ts";
 import { createFakeRail } from "../src/rails/fakeRail.ts";
 import { createX402Rail } from "../src/rails/x402.ts";
-import { createAcpRail } from "../src/rails/acp.ts";
+import { createAgenticCommerceRail } from "../src/rails/agentic-commerce.ts";
 import { createUcpRail } from "../src/rails/ucp.ts";
 import { createMppRail } from "../src/rails/mpp.ts";
 import { createVisaIntelligentCommerceRail } from "../src/rails/visaIntelligentCommerce.ts";
@@ -21,7 +21,7 @@ const NOW = "2026-05-29T12:00:00.000Z";
 
 const ALL: Array<{ id: string; rail: string; make: (c?: RailClient) => PaymentProvider }> = [
   { id: "x402", rail: "onchain", make: createX402Rail },
-  { id: "acp", rail: "checkout", make: createAcpRail },
+  { id: "agentic-commerce", rail: "checkout", make: createAgenticCommerceRail },
   { id: "ucp", rail: "checkout", make: createUcpRail },
   { id: "mpp", rail: "checkout", make: createMppRail },
   { id: "visa-intelligent-commerce", rail: "card", make: createVisaIntelligentCommerceRail },
@@ -118,4 +118,21 @@ test("the registry routes a rail kind to the chosen protocol", () => {
   assert.equal(registry.get("onchain")?.capabilities.id, "fake-onchain");
   assert.equal(registry.byId("visa-intelligent-commerce")?.capabilities.rail, "card");
   assert.equal(registry.ids().length, 3);
+});
+
+test("a contended rail kind with no route resolves deterministically to undefined", () => {
+  // ACP, UCP and MPP all serve "checkout": with no route the registry must not
+  // silently pick the first-registered — it returns undefined (fail-safe).
+  const ambiguous = createRailRegistry([
+    createAgenticCommerceRail(),
+    createUcpRail(),
+    createMppRail(),
+  ]);
+  assert.equal(ambiguous.get("checkout"), undefined);
+
+  // An explicit route disambiguates deterministically.
+  const routed = createRailRegistry([createAgenticCommerceRail(), createUcpRail(), createMppRail()], {
+    checkout: "ucp",
+  });
+  assert.equal(routed.get("checkout")?.capabilities.id, "ucp");
 });

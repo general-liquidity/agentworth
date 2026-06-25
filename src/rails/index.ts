@@ -18,7 +18,10 @@ export {
 } from "./networkRail.ts";
 
 export { createX402Rail, type X402Client } from "./x402.ts";
-export { createAcpRail, type AcpClient } from "./acp.ts";
+export {
+  createAgenticCommerceRail,
+  type AgenticCommerceClient,
+} from "./agentic-commerce.ts";
 export { createUcpRail, type UcpClient } from "./ucp.ts";
 export { createMppRail, type MppClient } from "./mpp.ts";
 export {

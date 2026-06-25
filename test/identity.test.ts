@@ -1,9 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+import { generateKeyPairSync, sign as edSign } from "node:crypto";
+
 import {
   noopVerifier,
   staticIdentityVerifier,
+  visaTapVerifier,
+  type SignedRequest,
 } from "../src/identity/verifier.ts";
 import { evaluateGate } from "../src/core/gate.ts";
 import { DEFAULT_DENY_RULES } from "../src/core/denyList.ts";
@@ -15,20 +19,130 @@ import {
   type PaymentIntent,
 } from "../src/core/types.ts";
 
-test("the static verifier matches registered agents; noop attests nothing", async () => {
+test("the static verifier NEVER attests cryptographically (asserted id only)", async () => {
   const verifier = staticIdentityVerifier({
     "agent-a": { agentId: "agent-a", principal: "tiberiu", attestation: "registry_attested" },
   });
-  const ok = await verifier.verify("agent-a");
-  assert.equal(ok.verified, true);
-  assert.equal(ok.identity.principal, "tiberiu");
-  assert.equal(ok.identity.attestation, "registry_attested");
+  // A matched record is asserted-but-unverified: it performs no signature check,
+  // so it must NOT report a cryptographic attestation, and the gate must treat it
+  // as untrusted (attestation "none", verified false).
+  const matched = await verifier.verify("agent-a");
+  assert.equal(matched.verified, false);
+  assert.equal(matched.identity.attestation, "none");
+  assert.equal(matched.identity.principal, "tiberiu"); // metadata preserved
 
   const unknown = await verifier.verify("agent-x");
   assert.equal(unknown.verified, false);
   assert.equal(unknown.identity.attestation, "none");
 
   assert.equal((await noopVerifier.verify("anything")).verified, false);
+});
+
+// --- Visa TAP RFC 9421 verification ------------------------------------------
+
+const KEY_PAIR = generateKeyPairSync("ed25519");
+const KEYID = "visa-key-1";
+
+/** Build an RFC 9421 signed request over @method/@authority/@path covering the
+ * stated created/expires window, signed with the test ed25519 key. */
+function signRequest(over: {
+  created: number;
+  expires?: number;
+  alg?: string;
+  tamper?: boolean;
+  key?: Parameters<typeof edSign>[2];
+}): SignedRequest {
+  const method = "POST";
+  const authority = "api.example.com";
+  const path = "/agent/pay";
+  const alg = over.alg ?? "ed25519";
+  const expiresPart = over.expires !== undefined ? `;expires=${over.expires}` : "";
+  const inner = `("@method" "@authority" "@path");created=${over.created}${expiresPart};keyid="${KEYID}";alg="${alg}"`;
+  const base = [
+    `"@method": ${method}`,
+    `"@authority": ${authority}`,
+    `"@path": ${path}`,
+    `"@signature-params": ${inner}`,
+  ].join("\n");
+  const sig = edSign(null, Buffer.from(base, "utf8"), over.key ?? KEY_PAIR.privateKey);
+  const sigB64 = over.tamper
+    ? Buffer.from("not-the-real-signature").toString("base64")
+    : sig.toString("base64");
+  return {
+    method,
+    authority,
+    path,
+    headers: {},
+    signatureInput: `sig1=${inner}`,
+    signature: `sig1=:${sigB64}:`,
+  };
+}
+
+test("visaTapVerifier verifies a valid RFC 9421 ed25519 signature", async () => {
+  const v = visaTapVerifier({
+    resolveKey: (k) => (k === KEYID ? KEY_PAIR.publicKey : undefined),
+    now: () => 1_000_000 * 1000,
+  });
+  const res = await v.verify(signRequest({ created: 999_900 }));
+  assert.equal(res.verified, true);
+  assert.equal(res.identity.attestation, "signed");
+  assert.equal(res.identity.agentId, KEYID);
+});
+
+test("visaTapVerifier binds a principal via identityOf (registry_attested)", async () => {
+  const v = visaTapVerifier({
+    resolveKey: () => KEY_PAIR.publicKey,
+    identityOf: (k) => ({ agentId: k, principal: "tiberiu", attestation: "registry_attested" }),
+    now: () => 1_000_000 * 1000,
+  });
+  const res = await v.verify(signRequest({ created: 999_900 }));
+  assert.equal(res.verified, true);
+  assert.equal(res.identity.principal, "tiberiu");
+  assert.equal(res.identity.attestation, "registry_attested");
+});
+
+test("visaTapVerifier rejects a tampered signature", async () => {
+  const v = visaTapVerifier({ resolveKey: () => KEY_PAIR.publicKey, now: () => 1_000_000 * 1000 });
+  const res = await v.verify(signRequest({ created: 999_900, tamper: true }));
+  assert.equal(res.verified, false);
+});
+
+test("visaTapVerifier rejects a wrong key (unknown keyid)", async () => {
+  const v = visaTapVerifier({ resolveKey: () => undefined, now: () => 1_000_000 * 1000 });
+  const res = await v.verify(signRequest({ created: 999_900 }));
+  assert.equal(res.verified, false);
+  assert.ok(res.reasons.some((r) => r.includes("keyid")));
+});
+
+test("visaTapVerifier rejects a key that doesn't match the signature", async () => {
+  const other = generateKeyPairSync("ed25519");
+  const v = visaTapVerifier({ resolveKey: () => other.publicKey, now: () => 1_000_000 * 1000 });
+  const res = await v.verify(signRequest({ created: 999_900 }));
+  assert.equal(res.verified, false);
+});
+
+test("visaTapVerifier enforces the expires freshness window", async () => {
+  const v = visaTapVerifier({ resolveKey: () => KEY_PAIR.publicKey, now: () => 2_000_000 * 1000 });
+  const res = await v.verify(signRequest({ created: 999_900, expires: 1_000_000 }));
+  assert.equal(res.verified, false);
+  assert.ok(res.reasons.some((r) => r.includes("expired")));
+});
+
+test("visaTapVerifier rejects a too-old signature (no expires, beyond max-age)", async () => {
+  const v = visaTapVerifier({
+    resolveKey: () => KEY_PAIR.publicKey,
+    now: () => 1_000_000 * 1000,
+    maxAgeSeconds: 60,
+  });
+  const res = await v.verify(signRequest({ created: 999_000 }));
+  assert.equal(res.verified, false);
+});
+
+test("visaTapVerifier rejects a non-ed25519 alg", async () => {
+  const v = visaTapVerifier({ resolveKey: () => KEY_PAIR.publicKey, now: () => 1_000_000 * 1000 });
+  const res = await v.verify(signRequest({ created: 999_900, alg: "rsa-pss-sha512" }));
+  assert.equal(res.verified, false);
+  assert.ok(res.reasons.some((r) => r.includes("ed25519")));
 });
 
 const NOW = "2026-05-30T12:00:00.000Z";

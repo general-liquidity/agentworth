@@ -9,7 +9,7 @@
 import type { PaymentIntent, RailKind, Receipt, Reversibility } from "../core/types.ts";
 
 export interface ProviderCapabilities {
-  /** Stable protocol id, e.g. "x402", "acp", "visa-intelligent-commerce". Many
+  /** Stable protocol id, e.g. "x402", "agentic-commerce", "visa-intelligent-commerce". Many
    * providers can share a `rail` kind (Visa and Mastercard are both `card`), so
    * the registry keys on `id` and routes a rail kind to the chosen provider. */
   id: string;
