@@ -1,10 +1,15 @@
-// A REAL settlement client for the on-chain (x402) rail: an ERC-20 transfer of a
-// stablecoin (e.g. USDC on Base). It depends on an injected `OnchainSigner` (a
-// subset of a viem WalletClient) rather than importing viem or embedding a chain
-// transport — so the settlement logic is correct and unit-testable here, while
-// the live key + RPC are supplied by the operator (the only thing that can move
-// real funds). Plugs into `createX402Rail(client)`; with no client the rail fails
-// safe, exactly as before.
+// A REAL settlement client for the on-chain rail: a DIRECT ERC-20 `transfer` of a
+// stablecoin (e.g. USDC on Base) from the operator's own wallet (the operator
+// signs and pays gas). This is NOT the x402 protocol — x402 settles via an
+// EIP-3009 `transferWithAuthorization` the facilitator submits gaslessly (see
+// `x402Client.ts` for that flow). This client is the plain "I hold the key, move
+// the token myself" path; it merely shares the `onchain` RailKind with x402, so
+// it plugs into `createX402Rail(client)` as the on-chain settlement seam. It
+// depends on an injected `OnchainSigner` (a subset of a viem WalletClient) rather
+// than importing viem or embedding a chain transport — so the settlement logic is
+// correct and unit-testable here, while the live key + RPC are supplied by the
+// operator (the only thing that can move real funds). With no client the rail
+// fails safe, exactly as before.
 //
 // amount is integer minor-units == the token's smallest unit (USDC has 6 decimals,
 // so 1_000_000 minor-units = 1 USDC), consistent with the rest of the system.

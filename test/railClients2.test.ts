@@ -14,8 +14,12 @@ import {
 } from "../src/rails/clients/virtualCardClient.ts";
 import {
   createX402RailClient,
+  decodePaymentHeader,
+  encodePaymentHeader,
+  X402_VERSION,
   type PaymentRequirements,
   type X402Facilitator,
+  type X402PaymentPayload,
 } from "../src/rails/clients/x402Client.ts";
 import { DEFAULT_DENY_RULES } from "../src/core/denyList.ts";
 import { DEFAULT_GATE_CONFIG, type Mandate, type PaymentIntent } from "../src/core/types.ts";
@@ -186,6 +190,40 @@ test("the x402 client refuses when no requirement is affordable or on an allowed
     networks: ["base"],
   });
   await assert.rejects(() => Promise.resolve(wrongNetwork.settle(x402Intent())));
+});
+
+test("the X-PAYMENT header codec round-trips the V1 structured payload", () => {
+  const payload: X402PaymentPayload = {
+    x402Version: X402_VERSION,
+    scheme: "exact",
+    network: "base",
+    payload: {
+      signature: "0xsig",
+      authorization: {
+        from: "0xfrom",
+        to: "0xmerchant",
+        value: "500000",
+        validAfter: "0",
+        validBefore: "1734567890",
+        nonce: "0xnonce",
+      },
+    },
+  };
+  const header = encodePaymentHeader(payload);
+  assert.equal(Buffer.from(header, "base64").toString("utf8").length > 0, true);
+  assert.deepEqual(decodePaymentHeader(header), payload);
+});
+
+test("the x402 client refuses when the facilitator reports settlement failure", async () => {
+  const facilitator: X402Facilitator = {
+    authorize: (a) => `xpay:${a.amountMinor}`,
+    settle: (a) => ({ txRef: "0xfail", network: a.requirement.network, success: false }),
+  };
+  const client = createX402RailClient({ facilitator, quote: () => [REQS()] });
+  await assert.rejects(
+    () => Promise.resolve(client.settle(x402Intent())),
+    /settlement failure/,
+  );
 });
 
 test("end-to-end: the x402 client settles through the onchain rail and reads back", async () => {
