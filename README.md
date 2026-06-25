@@ -42,7 +42,7 @@ The gate decides *may this spend happen*; a second, behavioural half (the Networ
 
 ## Status - built end-to-end (pre-1.0)
 
-The **B milestone** - "an agent that structurally can't spend wrong" - is built, tested, and CI-green: kernel, ledger, rails, agent loop, behavioural harness, money-domain completeness, the agentic-economy surface, and the integration/operations layer. **443 tests** pass, plus typecheck, a `tsc → dist` build, and an end-to-end demo run green in CI on Node 24.
+The **B milestone** - "an agent that structurally can't spend wrong" - is built, tested, and CI-green: kernel, ledger, rails, agent loop, behavioural harness, money-domain completeness, the agentic-economy surface, and the integration/operations layer. **477 tests** pass, plus typecheck, a `tsc → dist` build, and an end-to-end demo run green in CI on Node 24.
 
 **Injected by the operator, not in-repo** (a deliberate boundary, not a gap): the live rail clients (Visa/Mastercard credentials, a Stripe Issuing key, a funded on-chain signer + facilitator) and the live identity verifiers. Each fails *safe* when unconfigured - a real rail never fabricates a settlement.
 
@@ -52,7 +52,7 @@ The **B milestone** - "an agent that structurally can't spend wrong" - is built,
 
 ```bash
 npm install
-npm test                                   # 443 tests - gate, audit, executor, stores, rails, harness, surfaces
+npm test                                   # 477 tests - gate, audit, executor, stores, rails, harness, surfaces
 npm run demo                               # end-to-end walkthrough on the in-memory store (any Node)
 ```
 
@@ -309,7 +309,7 @@ From **FinancialClaw** (data-layer patterns): integer minor-units, multi-currenc
 
 ```bash
 npm install
-npm test          # 443 tests
+npm test          # 477 tests
 npm run typecheck # tsc --noEmit, strict
 npm run demo      # end-to-end walkthrough on the in-memory store (any Node)
 ```
