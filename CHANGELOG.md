@@ -4,6 +4,16 @@ All notable changes to OpenSolvency are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to adhere to
 semantic versioning once it reaches 1.0.
 
+## [0.1.5] - 2026-06-25
+
+### Added
+- **Proof-of-personhood gate inputs** (`@general-liquidity/opensolvency/identity`): `worldIdIdentityVerifier`
+  / `verifyWorldId` turn a verified [World ID](https://world.org) proof into the gate's `attestation`
+  (orb → `registry_attested`, device → `signed`; the `nullifier_hash` is the per-(human, action) sybil key),
+  and `passportToReputationLevel` / `verifyPassport` map a [Human Passport](https://passport.human.tech)
+  humanity score into the gate's `ReputationLevel`. Both follow the injected-verifier/scorer pattern (the ZK
+  proof verify and the live score fetch are delegated to the consumer) — no new dependency.
+
 ## [0.1.4] - 2026-06-25
 
 ### Added
