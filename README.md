@@ -8,7 +8,7 @@
 *Autonomous-money agents already move real funds with no mandate, no cap, no risk gate, and no approver. OpenSolvency is the missing layer - it lets an agent spend autonomously **inside** operator-defined bounds, and confirm above them.*
 
 [![CI](https://img.shields.io/github/actions/workflow/status/general-liquidity/opensolvency/ci.yml?style=flat-square&label=CI)](https://github.com/general-liquidity/opensolvency/actions)
-[![tests](https://img.shields.io/badge/tests-337%20passing-success?style=flat-square)](#develop)
+[![tests](https://img.shields.io/badge/tests-443%20passing-success?style=flat-square)](#develop)
 [![node](https://img.shields.io/badge/node-%E2%89%A522.18-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white)](#develop)
 [![license](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](#license)
 [![type](https://img.shields.io/badge/types-strict-3178C6?style=flat-square&logo=typescript&logoColor=white)](#tech-stack)
@@ -42,17 +42,17 @@ The gate decides *may this spend happen*; a second, behavioural half (the Networ
 
 ## Status - built end-to-end (pre-1.0)
 
-The **B milestone** - "an agent that structurally can't spend wrong" - is built, tested, and CI-green: kernel, ledger, rails, agent loop, behavioural harness, money-domain completeness, the agentic-economy surface, and the integration/operations layer. **337 tests** pass on Node 20 + the full suite, typecheck, and an end-to-end demo run green in CI on Node 22.
+The **B milestone** - "an agent that structurally can't spend wrong" - is built, tested, and CI-green: kernel, ledger, rails, agent loop, behavioural harness, money-domain completeness, the agentic-economy surface, and the integration/operations layer. **443 tests** pass, plus typecheck, a `tsc → dist` build, and an end-to-end demo run green in CI on Node 24.
 
-**Injected by the operator, not in-repo** (a deliberate boundary, not a gap): the live rail clients (Visa/Mastercard/ACP credentials, a funded on-chain signer + facilitator) and the live identity verifiers. Each fails *safe* when unconfigured - a real rail never fabricates a settlement.
+**Injected by the operator, not in-repo** (a deliberate boundary, not a gap): the live rail clients (Visa/Mastercard credentials, a Stripe Issuing key, a funded on-chain signer + facilitator) and the live identity verifiers. Each fails *safe* when unconfigured - a real rail never fabricates a settlement.
 
-**Follow-ons:** multi-instance cache invalidation for the Postgres store (LISTEN/NOTIFY), the Hermes-style hibernating runtime for inbound payment-challenge events, and a `tsc → dist` build before a public `npm publish`.
+**Follow-ons:** multi-instance cache invalidation for the Postgres store (LISTEN/NOTIFY) and the Hermes-style hibernating runtime for inbound payment-challenge events.
 
 ## Quickstart
 
 ```bash
 npm install
-npm test                                   # 337 tests - gate, audit, executor, stores, rails, harness, surfaces
+npm test                                   # 443 tests - gate, audit, executor, stores, rails, harness, surfaces
 npm run demo                               # end-to-end walkthrough on the in-memory store (any Node)
 ```
 
@@ -185,6 +185,7 @@ never fabricates a settlement.
 | <img height="14" align="top" src="https://cdn.simpleicons.org/visa/1A1F71" />&nbsp; **Visa Trusted Agent Protocol** | RFC-9421 HTTP message signatures - the same `attestation` shape. |
 | **Network reputation** | An injected payee-reputation source feeds risk (never relaxes the floor). |
 | **Sanctions / OFAC + AML** | Screening wired into the deny-list + risk classifier as a pluggable provider. |
+| **Verifiable Agency** (agent disclosure) | A signed, vendor-neutral disclosure a counterparty can verify *before* transacting - the enforced gate, the live mandates, the audit chain, and a SpendTrust score, each field provenance-stamped. The protocol + reference verifier live in the standalone [`@general-liquidity/agent-disclosure`](https://www.npmjs.com/package/@general-liquidity/agent-disclosure) package; OpenSolvency depends on it and is its reference implementation - keeping only the field builders (populate a disclosure from live primitives) + the adversarial corpus. Exposed at `@general-liquidity/opensolvency/disclosure`. |
 
 #### Surfaces & transports
 
@@ -234,7 +235,7 @@ agent / editor / MCP client / HTTP caller
    evaluateGate()  ◄── pure invariant: mandate · caps · risk · velocity · deny-list
         │
         ├── Store (memory · sqlite · postgres)      durable, signed, replayable
-        ├── Rails (x402 · card · ACP · AP2 · …)      fail-safe when unconfigured
+        ├── Rails (x402 · card · agentic-commerce · AP2 · …)  fail-safe when unconfigured
         └── Audit (hash-linked, HMAC-signed chain)   tamper-evident history
 ```
 
@@ -242,7 +243,7 @@ agent / editor / MCP client / HTTP caller
 |:--|:--|
 | **1 · Trust kernel** | The pure gate invariant + mandate + spend-risk + deny-list + hash-linked signed audit. No I/O, no clock - fully deterministic and replayable. |
 | **2 · Ledger** | A `Store` interface with three backends: `MemoryStore` (tests), `SqliteStore` (`node:sqlite`), and `PostgresStore` (durable source of truth + in-process read mirror + a `flush()` durability barrier the executor awaits - so the sync `Store` contract and the pure gate are unchanged). |
-| **3 · Rails** | A `PaymentProvider` interface + adapters for **x402, ACP, UCP, MPP, Visa, Mastercard, AP2** (+ `FakeRail`). Each declares accurate capabilities and takes an injected `RailClient`; **with none it fails safe - a real rail never fabricates a settlement.** Reference clients: on-chain ERC-20 transfer, single-use virtual card, and the x402 challenge→authorize→settle flow. |
+| **3 · Rails** | A `PaymentProvider` interface + adapters for **x402, Agentic Commerce, UCP, MPP, Visa, Mastercard, AP2** (+ `FakeRail`). Each declares accurate capabilities and takes an injected `RailClient`; **with none it fails safe - a real rail never fabricates a settlement.** Reference clients: on-chain ERC-20 transfer, single-use virtual card, and the x402 challenge→authorize→settle flow. |
 | **4 · Agent + CLI** | The `Executor` is the *only* path to a rail. The agent runs on the **Vercel AI SDK** multi-step loop, but its sole money tool (`pay`) executes *through* the gate, so even the autonomous loop can't bypass it. A deterministic offline stub backs tests + air-gapped runs. |
 | **5 · Behavioural harness** | The *helpfulness* half, from the Networth research. The **Four Pillars of Resilience** model the operator; the weakest pillar becomes the agent's standing agenda. Plus teachable-moment detection, "watching-your-back" concerns, goals-as-objectives, an empower-don't-exploit guardrail, anxiety-aware comms, cognitive-trap + knowledge-gap detectors, slip-cost + retirement projections, and an **i-frame/s-frame** honesty guardrail. |
 | **6 · Harness depth** | **Trust trajectory** (payees earn auto-approval; floor never relaxed), **hot-tier memory** + cold recall, **skills** (markdown playbooks on demand), a **self-evolution envelope** (Tier-1 lessons over a frozen Tier-0 floor), the **reasoning sandwich**, and a counterfactual **policy-replay simulator**. |
@@ -288,7 +289,7 @@ template).
 | <img height="14" align="top" src="https://cdn.simpleicons.org/zod/3E67B1" />&nbsp; [Zod](https://zod.dev) | Schema validation at every boundary (intents, ingress, tools) |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/modelcontextprotocol" />&nbsp; [MCP](https://modelcontextprotocol.io) · <img height="14" align="top" src="https://cdn.simpleicons.org/zedindustries/084CCF" />&nbsp; ACP | Agent-facing transports into the gate |
 | <img height="14" align="top" src="https://cdn.simpleicons.org/opentelemetry/F5A800" />&nbsp; [OpenTelemetry](https://opentelemetry.io) | Operational tracing over OTLP/HTTP, no hard dependency |
-| <img height="14" align="top" src="https://cdn.simpleicons.org/githubactions/2088FF" />&nbsp; GitHub Actions | CI: typecheck · full suite · end-to-end demo, on Node 22 |
+| <img height="14" align="top" src="https://cdn.simpleicons.org/githubactions/2088FF" />&nbsp; GitHub Actions | CI: lint · typecheck · build · full suite · end-to-end demo, on Node 24 |
 
 ## What we took from Gordon
 
@@ -306,7 +307,7 @@ From **FinancialClaw** (data-layer patterns): integer minor-units, multi-currenc
 
 ```bash
 npm install
-npm test          # 337 tests
+npm test          # 443 tests
 npm run typecheck # tsc --noEmit, strict
 npm run demo      # end-to-end walkthrough on the in-memory store (any Node)
 ```
