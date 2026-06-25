@@ -12,6 +12,7 @@ import {
   stubJudge,
   type EvalSuiteResult,
 } from "../src/evals/index.ts";
+import { llmJudge, parseJudgeVerdict, type JudgeModel } from "../src/evals/judge.ts";
 import type { AuditEntry } from "../src/core/audit.ts";
 
 // ── scenario generation + provenance ─────────────────────────────────────────
@@ -115,4 +116,34 @@ test("stub judge scores empowering advice above exploitative advice", async () =
   const good = await stubJudge.judge({ ask: "help me save", answer: "I can set up a £20 option for you — no rush, your next step is one transfer.", rubric: "advisory" });
   const bad = await stubJudge.judge({ ask: "help me save", answer: "Act now — you must buy this BNPL plan, guaranteed returns!", rubric: "advisory" });
   assert.ok(good.score > bad.score);
+});
+
+// ── pluggable judge seam ─────────────────────────────────────────────────────
+test("llmJudge adapts any text-completer into a JudgeModel (swappable seam)", async () => {
+  // A stub completer standing in for an LLM: it sees the rendered prompt and returns
+  // JSON, proving the seam is provider-free and swappable.
+  let sawRubric = false;
+  const judge: JudgeModel = llmJudge(async (prompt) => {
+    sawRubric = prompt.includes("RED FLAGS"); // the advisory rubric was injected
+    return 'noise before {"score": 0.91, "reason": "empowering, action-first"} trailing';
+  });
+  const v = await judge.judge({ ask: "help me save", answer: "...", rubric: "advisory" });
+  assert.equal(sawRubric, true);
+  assert.equal(v.score, 0.91);
+  assert.equal(v.reason, "empowering, action-first");
+});
+
+test("parseJudgeVerdict clamps and tolerates messy output", () => {
+  assert.equal(parseJudgeVerdict('{"score": 1.7, "reason": "x"}').score, 1);
+  assert.equal(parseJudgeVerdict('{"score": -3, "reason": "x"}').score, 0);
+  assert.equal(parseJudgeVerdict("not json at all").score, 0.5);
+});
+
+test("the harness accepts the adapter anywhere a JudgeModel is expected", async () => {
+  // Type-level + behavioural proof: both stubJudge and an llmJudge satisfy JudgeModel.
+  const judges: JudgeModel[] = [stubJudge, llmJudge(async () => '{"score":0.5,"reason":"r"}')];
+  for (const j of judges) {
+    const v = await j.judge({ ask: "a", answer: "b", rubric: "advisory" });
+    assert.ok(v.score >= 0 && v.score <= 1);
+  }
 });

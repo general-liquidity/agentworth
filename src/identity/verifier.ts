@@ -330,3 +330,150 @@ export function visaTapVerifier(opts: VisaTapOptions): IdentityVerifier {
     },
   };
 }
+
+// --- Optional library-backed RFC 9421 path -----------------------------------
+// The bespoke `visaTapVerifier` above is the default (zero dependencies, audited in
+// this repo). For operators who'd rather delegate signature-base construction to a
+// maintained RFC 9421 implementation, `httpMessageSignaturesVerifier` uses the
+// optional `http-message-signatures` package via dynamic import. It verifies the
+// SAME vector as the bespoke verifier (same covered components, same ed25519 key
+// resolution, same created/expires window) and reports the same attestation. When
+// the optional dependency is absent — or doesn't expose the expected API — it
+// transparently delegates to `visaTapVerifier`, so the default behaviour and surface
+// are unchanged.
+
+/** The subset of the `http-message-signatures` httpbis surface we use. Declared
+ *  structurally so we don't take a type-level dependency on the optional package. */
+interface HttpMessageSignaturesHttpbis {
+  verifyMessage: (
+    config: {
+      keyLookup: (params: { keyid?: string; alg?: string }) => Promise<
+        { id?: string; algs?: string[]; verify: (data: Buffer, signature: Buffer) => Promise<boolean | null> } | null
+      >;
+      tolerance?: number;
+    },
+    request: { method: string; url: string; headers: Record<string, string | string[]> },
+  ) => Promise<boolean | null>;
+}
+
+/** RFC 9421 verifier backed by the optional `http-message-signatures` library, with
+ *  a transparent fallback to the bespoke `visaTapVerifier` when the package isn't
+ *  installed or doesn't expose the expected API. Same inputs/outputs as
+ *  `visaTapVerifier`. The library reconstructs the signature base from the request
+ *  headers and runs the ed25519 check via the `keyLookup` we supply (resolving
+ *  `keyid` to the same Ed25519 key the bespoke path uses). */
+export function httpMessageSignaturesVerifier(opts: VisaTapOptions): IdentityVerifier {
+  const fallback = visaTapVerifier(opts);
+  const now = opts.now ?? Date.now;
+  const tolerance = opts.toleranceSeconds ?? 30;
+  const maxAge = opts.maxAgeSeconds ?? 300;
+
+  return {
+    async verify(presented: unknown): Promise<IdentityResult> {
+      const unverified = (reasons: string[]): IdentityResult => ({
+        verified: false,
+        identity: { agentId: "unknown", attestation: "none" },
+        reasons,
+      });
+
+      let httpbis: HttpMessageSignaturesHttpbis | undefined;
+      try {
+        // Computed specifier: `http-message-signatures` is an optionalDependency that
+        // may be absent, so we keep the import out of static module resolution and
+        // resolve it dynamically at runtime (transparent fallback to bespoke if absent).
+        const spec = "http-message-signatures";
+        const lib = (await import(spec)) as {
+          httpbis?: Partial<HttpMessageSignaturesHttpbis>;
+          default?: Partial<HttpMessageSignaturesHttpbis>;
+        } & Partial<HttpMessageSignaturesHttpbis>;
+        const candidate = (lib.httpbis ?? lib.default ?? lib) as Partial<HttpMessageSignaturesHttpbis>;
+        if (typeof candidate.verifyMessage === "function") {
+          httpbis = candidate as HttpMessageSignaturesHttpbis;
+        }
+      } catch {
+        httpbis = undefined;
+      }
+      // Library absent or unexpected shape → preserve default behaviour exactly.
+      if (!httpbis) return fallback.verify(presented);
+
+      const req = presented as Partial<SignedRequest> | null;
+      if (
+        !req ||
+        typeof req.signatureInput !== "string" ||
+        typeof req.signature !== "string" ||
+        typeof req.method !== "string"
+      ) {
+        return unverified(["not a Visa-TAP signed request"]);
+      }
+      const signed = req as SignedRequest;
+
+      // We still parse Signature-Input to enforce alg=ed25519, to bind the verified
+      // keyid to a principal, and to apply OUR injected-clock freshness window (the
+      // library's age check uses the real wall clock, which isn't deterministic for
+      // tests). The library owns signature-base reconstruction + the ed25519 check.
+      const parsed = parseSignatureInput(signed.signatureInput, opts.label);
+      if (!parsed) return unverified(["malformed or missing Signature-Input"]);
+      const { params } = parsed;
+      if (params.alg !== "ed25519") {
+        return unverified([`unsupported alg "${params.alg ?? "none"}" (require ed25519)`]);
+      }
+      if (!params.keyid) return unverified(["Signature-Input missing keyid"]);
+
+      const nowSec = Math.floor(now() / 1000);
+      if (params.created !== undefined) {
+        if (nowSec + tolerance < params.created) return unverified(["signature created in the future"]);
+        if (params.expires === undefined && nowSec - params.created > maxAge + tolerance) {
+          return unverified(["signature too old (created beyond max-age)"]);
+        }
+      }
+      if (params.expires !== undefined && nowSec - tolerance > params.expires) {
+        return unverified(["signature expired"]);
+      }
+
+      const key = await opts.resolveKey(params.keyid);
+      if (!key) return unverified([`unknown keyid "${params.keyid}"`]);
+
+      // Map our structured SignedRequest into the library's Request shape: the
+      // derived components (@method/@authority/@path) come from method+url, the
+      // covered headers + the Signature/Signature-Input headers go in `headers`.
+      const url = `https://${signed.authority}${signed.path}`;
+      const headers: Record<string, string | string[]> = {
+        ...signed.headers,
+        host: signed.authority,
+        "signature-input": signed.signatureInput,
+        signature: signed.signature,
+      };
+
+      let ok: boolean | null = false;
+      try {
+        ok = await httpbis.verifyMessage(
+          {
+            // Resolve keyid → an ed25519 verifier backed by the SAME KeyObject.
+            keyLookup: async () => ({
+              id: params.keyid,
+              algs: ["ed25519"],
+              verify: async (data: Buffer, signature: Buffer) => {
+                try {
+                  return edVerify(null, data, key, signature);
+                } catch {
+                  return false;
+                }
+              },
+            }),
+            // Freshness is enforced above with our injected clock; we don't pass
+            // maxAge so the library doesn't re-apply a real-wall-clock age gate.
+            tolerance,
+          },
+          { method: signed.method, url, headers },
+        );
+      } catch {
+        ok = false;
+      }
+      if (!ok) return unverified(["RFC 9421 signature did not verify (http-message-signatures)"]);
+
+      const bound = opts.identityOf?.(params.keyid);
+      const identity: AgentIdentity = bound ?? { agentId: params.keyid, attestation: "signed" };
+      return { verified: true, identity, reasons: ["RFC 9421 ed25519 signature verified (http-message-signatures)"] };
+    },
+  };
+}

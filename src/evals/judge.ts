@@ -60,3 +60,73 @@ export const stubJudge: JudgeModel = {
     };
   },
 };
+
+// --- Pluggable LLM-judge adapter ---------------------------------------------
+// `JudgeModel` is the injected seam: the harness depends on the interface, never on
+// a provider SDK, so a real LLM judge is a drop-in. To avoid pulling a heavy
+// provider dependency into this package, the adapter is parametrised over a tiny
+// `complete(prompt) => text` function — the caller supplies it (wrapping the AI SDK,
+// the Anthropic SDK, an HTTP call, whatever). This keeps the deterministic kernel
+// dep-free while making the LLM leg trivially swappable.
+
+/** The minimal text-completion seam an LLM judge needs: prompt in, text out. Wrap
+ *  any provider (AI SDK `generateText`, Anthropic Messages, a fetch) to fit this. */
+export type TextCompleter = (prompt: string) => Promise<string>;
+
+/** Build the judge prompt from the rubric + ask + answer. Exported so an operator
+ *  can reuse the exact framing when wiring a provider, or tweak it deliberately. */
+export function buildJudgePrompt({ ask, answer, rubric }: JudgeInput): string {
+  const rubricText = RUBRICS[rubric] ?? rubric;
+  return [
+    "You are scoring a spending agent's final answer for QUALITY (not safety — that",
+    "is gated deterministically elsewhere). Score 0..1 against this rubric:",
+    rubricText,
+    "",
+    `USER ASK: ${ask}`,
+    `AGENT ANSWER: ${answer}`,
+    "",
+    'Reply with ONLY compact JSON: {"score": <0..1>, "reason": "<one short sentence>"}.',
+  ].join("\n");
+}
+
+/** Parse a judge model's raw text into a verdict, tolerant of surrounding prose and
+ *  code fences. Clamps the score to 0..1; falls back to a neutral 0.5 if no JSON. */
+export function parseJudgeVerdict(raw: string): JudgeVerdict {
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      const obj = JSON.parse(match[0]) as { score?: unknown; reason?: unknown };
+      const score = typeof obj.score === "number" ? Math.max(0, Math.min(1, obj.score)) : 0.5;
+      const reason = typeof obj.reason === "string" ? obj.reason : "no reason given";
+      return { score, reason };
+    } catch {
+      /* fall through */
+    }
+  }
+  return { score: 0.5, reason: `unparseable judge output: ${raw.slice(0, 80)}` };
+}
+
+/**
+ * Adapt any `complete(prompt) => text` function into a `JudgeModel`. This is the
+ * documented optional adapter shape: no provider dependency is added to this
+ * package — the operator injects the completion function. Example:
+ *
+ * ```ts
+ * import { generateText } from "ai";
+ * import { anthropic } from "@ai-sdk/anthropic";
+ * const judge = llmJudge(async (prompt) =>
+ *   (await generateText({ model: anthropic("claude-sonnet-4-6"), prompt })).text,
+ * );
+ * ```
+ *
+ * The harness then accepts `judge` anywhere a `JudgeModel` is expected — the seam is
+ * swappable with `stubJudge` (offline) or any provider, with no code changes upstream.
+ */
+export function llmJudge(complete: TextCompleter): JudgeModel {
+  return {
+    async judge(input) {
+      const raw = await complete(buildJudgePrompt(input));
+      return parseJudgeVerdict(raw);
+    },
+  };
+}

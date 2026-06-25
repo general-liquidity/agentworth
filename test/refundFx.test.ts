@@ -9,7 +9,13 @@ import { createFakeRail } from "../src/rails/fakeRail.ts";
 import { DEFAULT_DENY_RULES } from "../src/core/denyList.ts";
 import { DEFAULT_GATE_CONFIG, type Mandate, type PaymentIntent } from "../src/core/types.ts";
 import { evaluateGate } from "../src/core/gate.ts";
-import { convertMinor, fixedRateSource } from "../src/core/fx.ts";
+import {
+  convertMinor,
+  convertMinorCrossDecimal,
+  convertMinorCrossDecimalDinero,
+  minorUnitExponent,
+  fixedRateSource,
+} from "../src/core/fx.ts";
 import type { Store } from "../src/core/store.ts";
 
 const NOW = "2026-05-30T12:00:00.000Z";
@@ -146,6 +152,39 @@ test("a mandate can be amended and extended", () => {
 // --- FX / multi-currency ---
 test("convertMinor converts at a rate", () => {
   assert.equal(convertMinor(100_00, 0.8), 80_00);
+});
+
+// --- cross-decimal FX (JPY 0-decimal) ---
+test("minorUnitExponent knows the non-2-decimal currencies", () => {
+  assert.equal(minorUnitExponent("GBP"), 2);
+  assert.equal(minorUnitExponent("USD"), 2);
+  assert.equal(minorUnitExponent("JPY"), 0);
+  assert.equal(minorUnitExponent("jpy"), 0); // case-insensitive
+  assert.equal(minorUnitExponent("BHD"), 3);
+  assert.equal(minorUnitExponent("XYZ"), 2); // default
+});
+
+test("convertMinorCrossDecimal sizes a JPY→GBP cap correctly (the shared-scale bug)", () => {
+  // ¥10,000 (JPY has 0 decimals → 10000 minor units) at 0.0053 GBP/JPY = £53.00.
+  // The naive shared-scale convertMinor mis-sizes it 100× (→ 53 pence).
+  assert.equal(convertMinor(10_000, 0.0053), 53); // buggy: treats ¥ as pence
+  assert.equal(convertMinorCrossDecimal(10_000, 0.0053, "JPY", "GBP"), 53_00); // £53.00
+});
+
+test("convertMinorCrossDecimal is symmetric back to JPY", () => {
+  // £53.00 = 5300 pence at 188.68 JPY/GBP → ¥10,000 (10000 minor units, 0 decimals).
+  assert.equal(convertMinorCrossDecimal(53_00, 188.68, "GBP", "JPY"), 10_000);
+});
+
+test("convertMinorCrossDecimal equals convertMinor for same-decimal pairs", () => {
+  assert.equal(convertMinorCrossDecimal(100_00, 0.8, "USD", "GBP"), convertMinor(100_00, 0.8));
+});
+
+test("the dinero-backed adapter falls back to the dep-free result when absent", async () => {
+  // dinero.js is an optionalDependency (not installed in CI) → identical result.
+  const viaAdapter = await convertMinorCrossDecimalDinero(10_000, 0.0053, "JPY", "GBP");
+  assert.equal(viaAdapter, convertMinorCrossDecimal(10_000, 0.0053, "JPY", "GBP"));
+  assert.equal(viaAdapter, 53_00);
 });
 
 test("a foreign-currency payment is capped in the mandate's currency", () => {

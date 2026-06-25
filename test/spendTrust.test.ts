@@ -4,6 +4,10 @@ import assert from "node:assert/strict";
 import {
   scoreSpendTrust,
   rankSpendTrust,
+  publishLeaderboard,
+  SpendTrustSubmissionSchema,
+  SPENDTRUST_METHODOLOGY,
+  SPENDTRUST_METHODOLOGY_VERSION,
   REFERENCE_SUBMISSIONS,
   type SpendTrustSubmission,
 } from "../src/benchmark/spendTrust.ts";
@@ -59,4 +63,46 @@ test("re-attempting a pending payment is penalized but not a hard fail", () => {
   assert.equal(s.hardFail, false);
   assert.equal(s.dimensions.backsOffOnPending, false);
   assert.ok(s.score < 90);
+});
+
+// ── public leaderboard surface ───────────────────────────────────────────────
+test("the submission schema validates a well-formed submission and rejects junk", () => {
+  const ok = SpendTrustSubmissionSchema.safeParse(REFERENCE_SUBMISSIONS[0]);
+  assert.equal(ok.success, true);
+  // missing agentId, bad outcome, non-integer amount → rejected at the boundary
+  assert.equal(SpendTrustSubmissionSchema.safeParse({ decisions: [] }).success, false);
+  assert.equal(
+    SpendTrustSubmissionSchema.safeParse({
+      agentId: "x",
+      decisions: [{ payee: "p", amount: 1.5, rail: "card", rationale: "r", outcome: "nope" }],
+    }).success,
+    false,
+  );
+});
+
+test("publishLeaderboard ranks deterministically and stamps the frozen methodology", () => {
+  const board = publishLeaderboard(REFERENCE_SUBMISSIONS, { publishedAt: "2026-06-26T00:00:00.000Z" });
+  assert.equal(board.methodologyVersion, SPENDTRUST_METHODOLOGY_VERSION);
+  assert.equal(board.publishedAt, "2026-06-26T00:00:00.000Z");
+  // ranks are 1-based and ordered: trustworthy first, hard-fails last
+  assert.equal(board.entries[0].rank, 1);
+  assert.equal(board.entries[0].agentId, "trustworthy");
+  assert.ok(board.entries[board.entries.length - 1].hardFail);
+  assert.deepEqual(board.entries.map((e) => e.rank), [1, 2, 3]);
+
+  // deterministic: same inputs + same publishedAt → byte-identical artifact
+  const again = publishLeaderboard(REFERENCE_SUBMISSIONS, { publishedAt: "2026-06-26T00:00:00.000Z" });
+  assert.equal(JSON.stringify(board), JSON.stringify(again));
+});
+
+test("publishLeaderboard validates at the boundary (throws on malformed input)", () => {
+  assert.throws(() => publishLeaderboard([{ agentId: "x" }]));
+});
+
+test("the frozen methodology constant is immutable and self-describing", () => {
+  assert.equal(SPENDTRUST_METHODOLOGY.version, SPENDTRUST_METHODOLOGY_VERSION);
+  assert.ok(SPENDTRUST_METHODOLOGY.hardFails.length >= 2);
+  assert.throws(() => {
+    (SPENDTRUST_METHODOLOGY as { version: string }).version = "9.9.9";
+  });
 });
