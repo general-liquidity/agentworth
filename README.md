@@ -124,6 +124,38 @@ await ready;
 const os = new AgentWorth({ store, commit: flush });         // writes are durable before pay() resolves
 ```
 
+Every decision is replayable, so a counterparty can **prove the gate enforced what it disclosed** - the falsifiable half of [ADP](https://github.com/general-liquidity/agent-disclosure-protocol)'s `enforced` claim:
+
+```ts
+import { effectivePolicy, computePolicyHash, replayDecision } from "@general-liquidity/agentworth";
+
+const policy = effectivePolicy({ store: os, config, denyRules });   // config/denyRules: the ones the gate runs under
+const disclosedHash = computePolicyHash(policy);                    // this hash is published in the disclosure
+
+// Replay any recorded decision (pulled from the audit trail) against the disclosed policy:
+const { matches } = replayDecision(record, policy, denyRules);
+matches;   // true → the gate provably enforced exactly the policy it disclosed
+```
+
+The same gate answers over HTTP, for non-TS callers:
+
+```bash
+agentworth token set "$TOKEN" && agentworth serve --port 8787   # start the ingress
+curl -s localhost:8787/payment-intent \
+  -H "authorization: Bearer $TOKEN" -H "content-type: application/json" \
+  -d '{"payee":"tesco","payeeClass":"groceries","amount":8000,"currency":"GBP","rail":"card","rationale":"weekly shop"}'
+# → 200 settled (inside a mandate) · 202 pending (needs the operator) · 403 blocked
+```
+
+The **behavioural half** lives behind the CLI: seed the operator's profile, then let the agent work their weakest resilience pillar - proposing help (clear high-cost debt, claim unclaimed support) that still routes through the gate:
+
+```bash
+# amounts in minor units (pence): £1,400 income, £1,200 essentials, £600 high-cost debt
+agentworth profile set --currency GBP --income 140000 --essentials 120000 \
+    --debt 60000 --informal-credit true --anxiety high --stage late-student
+agentworth finance "help me get back in control this month"
+```
+
 ### CLI commands
 
 | Command | What it does |
