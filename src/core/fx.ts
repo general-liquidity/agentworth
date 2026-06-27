@@ -56,9 +56,15 @@ const MINOR_UNIT_EXPONENT: Record<string, number> = {
   LYD: 3,
 };
 
-/** Minor-unit decimal exponent for a currency (default 2). */
-export function minorUnitExponent(currency: string): number {
-  return MINOR_UNIT_EXPONENT[currency.toUpperCase()] ?? 2;
+/** Minor-unit decimal exponent for a currency (default 2). ISO-4217 fixes fiat
+ *  exponents; token symbols (USDC=6, DAI=18, …) aren't in ISO, so an operator
+ *  passes their decimals via `tokenDecimals` (checked first). */
+export function minorUnitExponent(
+  currency: string,
+  tokenDecimals?: Record<string, number>,
+): number {
+  const c = currency.toUpperCase();
+  return tokenDecimals?.[c] ?? MINOR_UNIT_EXPONENT[c] ?? 2;
 }
 
 /**
@@ -72,8 +78,10 @@ export function convertMinorCrossDecimal(
   rate: number,
   from: string,
   to: string,
+  tokenDecimals?: Record<string, number>,
 ): number {
-  const scale = 10 ** (minorUnitExponent(to) - minorUnitExponent(from));
+  const scale =
+    10 ** (minorUnitExponent(to, tokenDecimals) - minorUnitExponent(from, tokenDecimals));
   return Math.round(amountMinor * rate * scale);
 }
 
@@ -89,6 +97,7 @@ export async function convertMinorCrossDecimalDinero(
   rate: number,
   from: string,
   to: string,
+  tokenDecimals?: Record<string, number>,
 ): Promise<number> {
   // dinero.js is an optionalDependency, absent by default. We resolve it via a
   // computed specifier so it stays out of static module resolution; if the import
@@ -100,14 +109,14 @@ export async function convertMinorCrossDecimalDinero(
     const mod = (await import(spec)) as { default?: unknown };
     factory = mod.default ?? mod;
   } catch {
-    return convertMinorCrossDecimal(amountMinor, rate, from, to);
+    return convertMinorCrossDecimal(amountMinor, rate, from, to, tokenDecimals);
   }
   if (typeof factory !== "function") {
-    return convertMinorCrossDecimal(amountMinor, rate, from, to);
+    return convertMinorCrossDecimal(amountMinor, rate, from, to, tokenDecimals);
   }
 
-  const fromExp = minorUnitExponent(from);
-  const toExp = minorUnitExponent(to);
+  const fromExp = minorUnitExponent(from, tokenDecimals);
+  const toExp = minorUnitExponent(to, tokenDecimals);
   // Express the FX rate as an integer multiplier / 10^p so dinero stays integer:
   // dineroAmount(in from-minor) × scaledRate / 10^p, then rescale by the decimal
   // delta. dinero multiply takes an integer factor.
@@ -120,6 +129,6 @@ export async function convertMinorCrossDecimalDinero(
     const product = money.multiply(scaledRate).getAmount();
     return Math.round(product / 10 ** p);
   } catch {
-    return convertMinorCrossDecimal(amountMinor, rate, from, to);
+    return convertMinorCrossDecimal(amountMinor, rate, from, to, tokenDecimals);
   }
 }

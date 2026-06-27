@@ -78,6 +78,9 @@ export interface ExecutorDeps {
   commit?: () => Promise<void>;
   /** Optional FX rates; enables cross-currency payments against a mandate. */
   fxRates?: FxRateSource;
+  /** Minor-unit decimals for non-ISO currencies (token symbols: USDC=6, DAI=18).
+   *  Threaded into cross-decimal FX so caps/budget are scaled correctly. */
+  tokenDecimals?: Record<string, number>;
   /** Optional network reputation source; feeds the gate's risk. */
   reputation?: ReputationSource;
 }
@@ -129,7 +132,7 @@ export function createExecutor(deps: ExecutorDeps) {
             const r = deps.fxRates?.rate(from, to);
             return r === undefined
               ? undefined
-              : convertMinorCrossDecimal(amount, r, from, to);
+              : convertMinorCrossDecimal(amount, r, from, to, deps.tokenDecimals);
           }
         : undefined,
       attestation,
@@ -196,7 +199,10 @@ export function createExecutor(deps: ExecutorDeps) {
     const provider = deps.rails.get(intent.rail);
     if (!provider) return { error: `no provider registered for rail ${intent.rail}` };
     try {
-      const receipt = await provider.settle(intent, now);
+      const receipt: Receipt = {
+        ...(await provider.settle(intent, now)),
+        providerId: provider.capabilities.id,
+      };
       deps.store.insertReceipt(receipt);
       record(
         "payment.settled",
@@ -515,7 +521,14 @@ export function createExecutor(deps: ExecutorDeps) {
     if (stored.status !== "settled") {
       return { intentId, ok: false, refundedMinor: already, reason: `not settled (${stored.status})` };
     }
-    const provider = deps.rails.get(stored.intent.rail);
+    const receipt = stored.receiptId ? deps.store.getReceipt(stored.receiptId) : undefined;
+    if (!receipt) return { intentId, ok: false, refundedMinor: already, reason: "no receipt" };
+    // Resolve the provider that ISSUED this receipt, not whatever currently serves
+    // the rail kind — a re-route must not send the refund to a different PSP.
+    // Fall back to the rail-kind provider for pre-existing receipts with no providerId.
+    const provider =
+      (receipt.providerId ? deps.rails.byId(receipt.providerId) : undefined) ??
+      deps.rails.get(stored.intent.rail);
     if (!provider) return { intentId, ok: false, refundedMinor: already, reason: "no provider" };
     if (provider.capabilities.reversibility !== "reversible") {
       return { intentId, ok: false, refundedMinor: already, reason: "settlement is irreversible — cannot refund" };
@@ -527,8 +540,6 @@ export function createExecutor(deps: ExecutorDeps) {
     if (amount <= 0 || already + amount > stored.intent.amount) {
       return { intentId, ok: false, refundedMinor: already, reason: "invalid refund amount" };
     }
-    const receipt = stored.receiptId ? deps.store.getReceipt(stored.receiptId) : undefined;
-    if (!receipt) return { intentId, ok: false, refundedMinor: already, reason: "no receipt" };
 
     const now = deps.clock();
     const { refundRef } = await provider.refund(receipt, amount, now);

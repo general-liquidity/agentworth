@@ -88,6 +88,10 @@ export interface Receipt {
   settledAt: string; // ISO
   providerRef: string; // the rail's own reference (tx hash, charge id, …)
   finality: SettlementFinality;
+  /** The id of the provider that issued this receipt. A refund resolves back to
+   *  THIS provider, not whatever currently serves the rail kind (a re-route must
+   *  not send a refund to a different PSP). Optional for pre-existing receipts. */
+  providerId?: string;
 }
 
 export type GateOutcome = "auto_execute" | "confirm_operator" | "block";

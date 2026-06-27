@@ -15,16 +15,25 @@ import { normalizePayee, hasInvisibleChars } from "./payeeNormalize.ts";
  * (e.g. MPP→stablecoin) that isn't the `onchain` kind but is still irreversible. */
 const IRREVERSIBLE_UNKNOWN_FLOOR_MINOR = 50_00; // e.g. £50.00
 
-export const DEFAULT_DENY_RULES: DenyRule[] = [
-  {
+/**
+ * The irreversible-to-unknown-payee rule, as a factory so the floor is tunable.
+ * `DEFAULT_DENY_RULES` uses the default floor; an operator who wants a different
+ * threshold composes `[irreversibleUnknownPayeeRule(myFloor), ...rest]`.
+ */
+export function irreversibleUnknownPayeeRule(floorMinor: number): DenyRule {
+  return {
     id: "irreversible_to_unknown_payee",
     reason:
       "irreversible payment to a payee with no prior history, above the hard floor",
     match: (intent, { knownPayees, reversibility }) =>
       reversibility === "irreversible" &&
       !knownPayees.has(intent.payee) &&
-      intent.amount >= IRREVERSIBLE_UNKNOWN_FLOOR_MINOR,
-  },
+      intent.amount >= floorMinor,
+  };
+}
+
+export const DEFAULT_DENY_RULES: DenyRule[] = [
+  irreversibleUnknownPayeeRule(IRREVERSIBLE_UNKNOWN_FLOOR_MINOR),
   {
     // A payee id carrying zero-width / BiDi / control characters has no honest
     // explanation - it's a homoglyph/spoofing attempt (e.g. to impersonate a
