@@ -331,6 +331,11 @@ export type { AuditEntry, AuditEventType, VerifyResult } from "../core/audit.ts"
 export type { ExecuteResult, RefundResult } from "../core/executor.ts";
 export type { Store, StoredIntent, IntentStatus } from "../core/store.ts";
 export { createMemoryStore } from "../store/memoryStore.ts";
+// Deny-list: the default hard rules + a factory for an operator sanctioned/scam
+// payee blocklist (homoglyph-normalized), composable as
+// `denyRules: [...DEFAULT_DENY_RULES, blocklistedPayeeRule(myList)]`.
+export { DEFAULT_DENY_RULES, blocklistedPayeeRule } from "../core/denyList.ts";
+export { normalizePayee, hasInvisibleChars } from "../core/payeeNormalize.ts";
 export {
   exportAuditChain,
   parseAuditExport,

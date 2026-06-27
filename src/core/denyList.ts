@@ -6,6 +6,7 @@
 // so a prompt-injected "ignore the deny-list" cannot reach them.
 
 import type { DenyRule } from "./types.ts";
+import { normalizePayee, hasInvisibleChars } from "./payeeNormalize.ts";
 
 /** Irreversible sends to a never-before-seen payee are the classic agentic-payment
  * footgun (Aeon's distribute-tokens has no such guard). Above a hard floor we
@@ -24,4 +25,31 @@ export const DEFAULT_DENY_RULES: DenyRule[] = [
       !knownPayees.has(intent.payee) &&
       intent.amount >= IRREVERSIBLE_UNKNOWN_FLOOR_MINOR,
   },
+  {
+    // A payee id carrying zero-width / BiDi / control characters has no honest
+    // explanation - it's a homoglyph/spoofing attempt (e.g. to impersonate a
+    // known payee or slip a blocklist). Refuse it outright, before any mandate.
+    id: "spoofed_payee_identifier",
+    reason:
+      "payee identifier contains invisible or control characters (zero-width / BiDi) with no legitimate use",
+    match: (intent) => hasInvisibleChars(intent.payee),
+  },
 ];
+
+/**
+ * Build a deny rule that blocks any payment to a sanctioned / known-scam payee.
+ * Pass the operator's blocklist (OFAC-flagged addresses, known-fraud payees, …).
+ * Matching is on the NORMALIZED payee, so a homoglyph- or zero-width-spoofed
+ * variant of a listed payee is still caught. Compose it with the defaults:
+ *
+ *   denyRules: [...DEFAULT_DENY_RULES, blocklistedPayeeRule(myBlocklist)]
+ */
+export function blocklistedPayeeRule(blocklist: Iterable<string>): DenyRule {
+  const normalized = new Set<string>();
+  for (const entry of blocklist) normalized.add(normalizePayee(entry));
+  return {
+    id: "blocklisted_payee",
+    reason: "payee is on the operator's sanctioned / blocked payee list",
+    match: (intent) => normalized.has(normalizePayee(intent.payee)),
+  };
+}
