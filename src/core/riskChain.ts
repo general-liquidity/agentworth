@@ -3,7 +3,7 @@ import type { PaymentIntent } from "./types.ts";
 
 export interface RiskChainAlert {
   triggered: boolean;
-  type: "NONE" | "SMURFING" | "PROBING";
+  type: "NONE" | "SMURFING" | "PROBING" | "SPLITTING";
   reason?: string;
 }
 
@@ -45,6 +45,29 @@ export function evaluateRiskChain(
         reason:
           `Smurfing/Slicing alert: ${samePayeeDecisions.length + 1} auto-executed payments ` +
           `to "${intent.payee}" within ${windowMinutes}m, totaling ${totalAmount} minor-units.`,
+      };
+    }
+  }
+
+  // 1b. Cross-rail splitting: the same payee auto-executed across >=2 distinct
+  // rails in the window - fragmenting a spend across rails to dodge per-rail or
+  // per-mandate caps. Catches the 2-3 payment case that slips under the smurfing
+  // count. Bypassed for streaming mandates (like smurfing).
+  if (!opts.isStreaming) {
+    const samePayeeAuto = recentDecisions.filter(
+      (d) => d.intent.payee === intent.payee && d.outcome === "auto_execute",
+    );
+    const rails = new Set<string>(samePayeeAuto.map((d) => d.intent.rail));
+    rails.add(intent.rail);
+    if (samePayeeAuto.length >= 2 && rails.size >= 2) {
+      const totalAmount =
+        samePayeeAuto.reduce((sum, d) => sum + d.intent.amount, 0) + intent.amount;
+      return {
+        triggered: true,
+        type: "SPLITTING",
+        reason:
+          `Cross-rail splitting alert: payments to "${intent.payee}" spread across ` +
+          `${rails.size} rails within ${windowMinutes}m, totaling ${totalAmount} minor-units.`,
       };
     }
   }

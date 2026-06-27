@@ -340,3 +340,19 @@ test("RiskChain never upgrades a blocked verdict toward execution (downgrade-onl
   assert.ok(r.decision.reasons.some((reason) => reason.includes("RiskChain")));
 });
 
+test("RiskChain flags cross-rail splitting to the same payee", async () => {
+  const { store, executor } = harness();
+  store.insertMandate(mandate({ allowedRails: ["card", "onchain"] }));
+  seedKnown(store);
+
+  // Same payee, auto-executed across two rails, fragmenting a spend to dodge
+  // a per-rail cap. The third hop trips the SPLITTING chain alert.
+  await executor.execute(intent({ id: "x1", rail: "card" }));
+  await executor.execute(intent({ id: "x2", rail: "onchain" }));
+  const x3 = await executor.execute(intent({ id: "x3", rail: "card" }));
+  assert.equal(x3.status, "pending");
+  assert.ok(
+    x3.decision.reasons.some((r) => r.includes("RiskChain: Cross-rail splitting")),
+  );
+});
+
