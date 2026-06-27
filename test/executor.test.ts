@@ -10,6 +10,7 @@ import { DEFAULT_DENY_RULES } from "../src/core/denyList.ts";
 import { DEFAULT_GATE_CONFIG, type Mandate, type PaymentIntent } from "../src/core/types.ts";
 import { fixedRateSource } from "../src/core/fx.ts";
 import type { Store } from "../src/core/store.ts";
+import type { PaymentProvider } from "../src/rails/provider.ts";
 
 const NOW = "2026-05-29T12:00:00.000Z";
 
@@ -354,5 +355,51 @@ test("RiskChain flags cross-rail splitting to the same payee", async () => {
   assert.ok(
     x3.decision.reasons.some((r) => r.includes("RiskChain: Cross-rail splitting")),
   );
+});
+
+test("a refund resolves to the issuing provider, not a re-routed one", async () => {
+  const refundCalls: string[] = [];
+  const psp = (id: string): PaymentProvider => ({
+    capabilities: { id, rail: "card", reversibility: "reversible", settlementFinality: "instant" },
+    settle: (i: PaymentIntent, now: string) => ({
+      id: `rc_${id}_${i.id}`,
+      intentId: i.id,
+      rail: "card" as const,
+      amount: i.amount,
+      currency: i.currency,
+      settledAt: now,
+      providerRef: id,
+      finality: "reversible" as const,
+    }),
+    verifyReceipt: () => true,
+    refund: () => {
+      refundCalls.push(id);
+      return { refundRef: `${id}_r` };
+    },
+  });
+  const store = createMemoryStore("test-key");
+  const audit = new AuditLog(store.operatorKey(), store.loadAudit());
+  const mkExec = (route: string) =>
+    createExecutor({
+      store,
+      rails: createRailRegistry([psp("psp-one"), psp("psp-two")], { card: route }),
+      audit,
+      config: DEFAULT_GATE_CONFIG,
+      denyRules: DEFAULT_DENY_RULES,
+      clock: () => NOW,
+    });
+
+  // Settle while card is routed to psp-one (which therefore issues the receipt).
+  const exec1 = mkExec("psp-one");
+  store.insertMandate(mandate());
+  seedKnown(store);
+  const settled = await exec1.execute(intent({ id: "rf1" }));
+  assert.equal(settled.status, "settled");
+
+  // Operator re-routes card -> psp-two. A refund must still hit the ISSUER, psp-one.
+  const exec2 = mkExec("psp-two");
+  const refund = await exec2.refund("rf1");
+  assert.equal(refund.ok, true);
+  assert.deepEqual(refundCalls, ["psp-one"]);
 });
 

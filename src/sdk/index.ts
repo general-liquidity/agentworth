@@ -101,6 +101,9 @@ export interface AgentWorthOptions {
   commit?: () => Promise<void>;
   /** FX rates used to enforce cross-currency mandates in the mandate's units. */
   fxRates?: FxRateSource;
+  /** Minor-unit decimals for non-ISO currencies (token symbols: USDC=6, DAI=18),
+   *  so cross-decimal FX scales caps/budget correctly for those. */
+  tokenDecimals?: Record<string, number>;
   /** Optional payee reputation signal. It can raise/lower risk, never the floor. */
   reputation?: ReputationSource;
   /** Best-effort out-of-band approval notifications. */
@@ -154,6 +157,7 @@ export class AgentWorth {
       challengeThresholdMinor: options.challengeThresholdMinor,
       commit: options.commit,
       fxRates: options.fxRates,
+      tokenDecimals: options.tokenDecimals,
       reputation: options.reputation,
       notifier: options.notifier,
       tracer: options.tracer,

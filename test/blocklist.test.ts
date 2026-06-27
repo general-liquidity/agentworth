@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_DENY_RULES, blocklistedPayeeRule } from "../src/core/denyList.ts";
+import {
+  DEFAULT_DENY_RULES,
+  blocklistedPayeeRule,
+  irreversibleUnknownPayeeRule,
+} from "../src/core/denyList.ts";
 import type { PaymentIntent } from "../src/core/types.ts";
 
 const ZWSP = String.fromCodePoint(0x200b);
@@ -37,4 +41,16 @@ test("blocklistedPayeeRule blocks a sanctioned payee, case + homoglyph variants"
   assert.equal(rule.match(intentTo("b" + CYR_A + "dact" + CYR_O + "r"), matchCtx), true);
   // an unrelated payee passes
   assert.equal(rule.match(intentTo("goodpayee"), matchCtx), false);
+});
+
+test("irreversibleUnknownPayeeRule honors a tunable floor", () => {
+  const irrevCtx = { knownPayees: new Set<string>(), reversibility: "irreversible" as const };
+  const rule = irreversibleUnknownPayeeRule(100_00); // £100 floor
+  // £60 irreversible to an unknown payee is UNDER the custom floor -> not blocked
+  assert.equal(rule.match({ ...intentTo("newpayee"), amount: 60_00 }, irrevCtx), false);
+  // £150 is over -> blocked
+  assert.equal(rule.match({ ...intentTo("newpayee"), amount: 150_00 }, irrevCtx), true);
+  // a known payee is never caught regardless of amount
+  const known = { knownPayees: new Set(["newpayee"]), reversibility: "irreversible" as const };
+  assert.equal(rule.match({ ...intentTo("newpayee"), amount: 150_00 }, known), false);
 });
